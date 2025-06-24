@@ -18,7 +18,7 @@ editor_options:
 
 ## Objective
 The purpose of this study is to provide South Florida Water Management District (SFWMD) **an estimate of the effect of reduced recruitment into the population**, identifying critical thresholds for productivity under conservative scenarios. A Population Viability Analysis (PVA) shall take into account the impact of reduced nesting (either through failures of nest attempts or through reduced attempts) to the viability of the state-wide snail kite population, as well as whether regional differences in nesting effort are important. In other words, **evaluate the overall impact of reduced nesting, as well as the impact of how that reduction is distributed among six historical breeding regions**.
-
+ 
 This work order goal is to provide snail kite nest location and population information for management, as well as developing a PVA for long-term mitigation and restoration planning activities.
 
 # Conceptual framework, packages, and functions

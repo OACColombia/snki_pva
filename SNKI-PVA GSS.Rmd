@@ -43,7 +43,7 @@ library(MetBrewer)
 
 ## Simple (one-population) Stochastic Gompertz State Space
 
-Let $S_{t}$ be the (unobserved) population abundance at time $t$, the latent or state ecological process for the Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The population dynamic is $S_t = S_{t-1} ~e^{a+b*\ln{S_{t-1}} + E_t}$), where $a$ and $b$ are constants representing the intrinsic population growth rate and the strength of density dependence, respectively, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{S_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). 
+Let $S_{t}$ be the (unobserved) population abundance at time $t$, the latent or state ecological process for the Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The population dynamic is $S_t = S_{t-1} ~e^{(a+b\times\ln{S_{t-1}} + E_t)}$, where $a$ and $b$ are constants representing the intrinsic population growth rate and the strength of density dependence, respectively, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{S_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). 
 
 This population model has three unknown parameters: $a$, $c$, and $\sigma^2$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The transition probability distribution of this logarithmic abundance model is normal, with mean and variance changing as a function of time. The parameter $c$ represents the strength of density-dependence ([Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002)). If the strength of density dependence ($c$) ranges $-1<c<1$, the long-run probability distribution of log-abundance approaches a time-independent normal stationary distribution ($X_t→X_∞$), with mean $\frac{a}{1-c}$ and variance $\frac{\sigma^2}{1-c^2}$. Thus, instead of approaching a single population abundance value, or a deterministic carrying capacity, the density-dependent stochastic GSS model approaches a stationary distribution, a cloud of points around which the population fluctuates ([Dennis & Taper, 1994](https://doi.org/10.2307/2937041); [Wolda, 1989](https://doi.org/10.1007/BF00377095)). The mean of this distribution, $\mu = \frac{a}{1-c}$, represents a long-term expected (log)population size ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). As mentioned above, the density-independent stochastic exponential growth model of [Dennis *et al.* (1991)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004) is attained when $b=0$ ($c=1$). The state-space model formulation for these two models is completed with the specification of the sampling (observation) error model.
 
@@ -64,6 +64,8 @@ $$
 \end{array}
 $$
 
+Note the direct link between $\theta$ and $c$. 
+
 ## Multiple-subpopulations (regions) Stochastic Gompertz State Space
 
 To include the six regions (e.g., demes, spatially differentiated subpopulations) of study in the snail kite superpopulation in Florida, we can adjust the equation for the population ecological process as:
@@ -71,19 +73,19 @@ To include the six regions (e.g., demes, spatially differentiated subpopulations
 $$
 S_{t+1,i} = S_{t,i}\times\exp\left\{a_{i} + b_{i1}\ln\,S_{t,1} + b_{i2}\ln\,S_{t,2} + b_{i3}\ln\,S_{t,3} + b_{i4}\ln\,S_{t,4} + b_{i5}\ln\,S_{t,5} + b_{i6}\ln\,S_{t,6}+ E_{t,i} \right\},\\\quad i=1,2,3,4,5,6. 
 $$
-\noindent where $S_{t+1,i}$ is the abundance population in the region $i$ in $t+1$, which depends on the previous time abundance in that same region ($S_{t,i}$) and it is affected by the intrinsic growth parameter ($a_{i}$), the density dependence in that region ($b_{ii}\ln\,S_{t,i}$), and the density dependence and previous time abundance from the other regions ($b_{ij}\ln\,S_{t,j}$). The $E_{t,i}$ are $\rm{iid}$ Normal with mean 0 and variance $\sigma^{2}$. Let's set $\ln\,S_{t,i} = X_{t,i}$. Then, the model can be re-written using as a response variable the abundance change of the $i^{th}$ region:
+\noindent where $S_{t+1,i}$ is the abundance population in the region $i$ in the next time $t+1$, which depends on the current time abundance in that same region ($S_{t,i}$) and it is affected by the intrinsic growth parameter ($a_{i}$), the density dependence in that region ($b_{ii}\ln\,S_{t,i}$), and the density dependence and current time abundance from the other regions ($b_{ij}\ln\,S_{t,j}$). The $E_{t,i}$ are $\rm{iid}$ Normal with mean 0 and variance $\sigma^{2}$. Let's set $\ln\,S_{t,i} = X_{t,i}$. Then, the model can be re-written using as a response variable the abundance change of the $i^{th}$ region:
 
 $$
 X_{t+1,i} - X_{t,i} = a_{i} + b_{i1}X_{t,1} + b_{i2}X_{t,2} + b_{i3}X_{t,3} + b_{i4}X_{t,4} + b_{i5}X_{t,5} + b_{i6}X_{t,6} + E_{t,i} ,\\\quad i=1,2,3,4,5,6. 
 $$
-In other words, the $b_{ii}$ are interpreted as the intra-region, density-dependent effects and the $b_{ij}$ are interpreted as the non-linear effect of region $(j)$'s population density on the growth rate of the population $(i)$
+In other words, the $b_{ii}$ are interpreted as the intra-region, density-dependent effects, while the $b_{ij}$ are interpreted as the non-linear effect of region $(j)$'s population density on the growth rate of the population $(i)$
 
 The model in full matrix format is:
 $$
 \mathbf{X}_{t+1} = \mathbf{a} + (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
 $$
 
-The components of this matrix model are
+The components of this matrix model are:
 
 First, the State vector:
 $$
@@ -434,9 +436,9 @@ randmvn <- function(n, mu.vec, cov.mat){
 
 # Assymetric migration effects model
 
-## Recover data preprocessed
+## Bring back the data processed
 
-We can recover the data processed, which include three surveys (4, 5, 6) for six regions across 29 years. However, the current year is incomplete, having only NAs, thus we removed and ended with three surveys for 28 years
+We can bring back the data processed, which include three surveys (4, 5, 6) per year for six regions across 29 years. However, the current year is incomplete, having only NAs, thus we removed and ended with three surveys for 28 years
 ```{r}
 load("Code/SNKIdata.RData") # Load raw data
 
@@ -449,7 +451,7 @@ NA5mat <- NAS.list$NA5mat[1:6,1:28]
 NA6mat <- NAS.list$NA6mat[1:6,1:28]
 ```
 
-Now we pick a single time series of counts, remove NAs, and "`cbind()` it" to a column of time, thus getting a matrix with time as a first column and counts as a second column. We use this matrix to compute a guess of the model parameters.
+Now we pick a single time series of counts with no `NA`s, and "`cbind()` it" to a column of time, thus getting a matrix with time as a first column and counts as a second column. We use this matrix to compute a first guess of the model parameters to be used in all regions.
 
 ```{r}
 ts.4guess  <- S4mat[3,]
@@ -476,15 +478,15 @@ rownames(min.condists) <- rownames(S4mat)
 min.condists
 ```
 
-The number of (sub)populations `p` serves to construct the initial values for the model. These initial values are a list of a vector at the log scale. (por qué?)
+The number of (sub)populations `p` serves to construct the initial values for the model. These initial values are a list of a vector at the log scale. **(por qué?)**
 ```{r}
 p <- nrow(S4mat)
-myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu = mean(log(ts.4guess)), why log of the log?
+myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu ≈ mean(log(ts.4guess)), why log of the log?
                 lthetavec = log(rep(naive.guess[2],p)), # why theta in log?
                 lsigmasq = log(naive.guess[3])) # why sigmasq in log?
 ```
 
-And we can define the "dinvmat" choosing one of the distance matrices (qué era esto?)
+And we can define the "dinvmat" choosing one of the distance matrices **(No recuerdo qué era esto?)**
 ```{r}
 dmat <- centr.dists 
 dinvmat <- (dmat/dmat^2)  
@@ -494,7 +496,7 @@ dinvmat
 
 ## Data cloning model fit
 
-Using MCMC algorithms (through JAGS, for example), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters. 
+Using MCMC algorithms (through JAGS, for example), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html)). 
 
 ```{r Data cloning model}
 MGSS_DC3.0 <- function(){
@@ -559,7 +561,7 @@ $$
         0 & 0 & 0 & 0 & 0 & 1
     \end{bmatrix},
 $$
-while the distance matrix `dinvmat` (no recuerdo por qué era asi). In the model, we have included a step-stone process of movement, represented in the matrix `step.stone`.
+while the distance matrix `dinvmat` **(no recuerdo por qué era asi, misma duda de antes)**. In the model, we have included a step-stone process of movement, represented in the matrix `step.stone`.
 
 ```{r Data for dclone}
 data4dclone <- list(K=1, 
@@ -601,7 +603,7 @@ mgssdclone <- dc.fit(data4dclone,
 saveRDS(mgssdclone, "Code/mgssdclone.RDS")
 ```
 
-Let's check this model. We can see the diagnostics for estimability of the parameters with the `dcdiag()` function in the package `dclone`, as well as the `summary` and confidence intervals of the estimates. The variable $\lambda_{max}$ is the largest eigenvalue of the posterior variance covariance matrix, while `ms.error` represents the mean squared error, and the $r^2$ is a correlation-like fit statistic. All three statistics should decrease (converge to zero) as a function of the number of clones. 
+Let's check this model. We can see the diagnostics for estimability of the parameters with the `dcdiag()` function in the package `dclone`, as well as the `summary` and confidence intervals of the estimates. The variable `lambda.max` is the largest eigenvalue of the posterior variance covariance matrix, while `ms.error` represents the mean squared error, and the `r.squared` is a correlation-like fit statistic. All three statistics should decrease (converge to zero) as a function of the number of clones. Furthermore, the multivariate `r.hat` value is used to check MCMC chain convergence (should be near to 1).
 
 ```{r call dclone model fitted and see diagnostics}
 mgssdclone <- readRDS("Code/mgssdclone.RDS")
@@ -704,7 +706,7 @@ kalman.mcmcw <- jags.fit(data4kalman,
                          thin=thin)
 ```
 
-And then, recover the data to see the population trajectories in each region.
+And then, bring back the data to see the population trajectories in each region.
 
 ```{r}
 Xkalman <-  do.call(rbind, kalman.mcmcw)
@@ -770,7 +772,7 @@ kalman_df <- as.data.frame(Kalman.quants) |>
           regex = "X\\[(\\d+),(\\d+)\\]", convert = TRUE)
 ```
 
-And then plot with the names of the regions and in real scale, adding observations
+And then plotting with the names of the regions and in real scale of counts, adding the three surveys per year
 
 ```{r Figure at real scale with obs counts, warning=FALSE}
 kalman_wide <- kalman_df |>

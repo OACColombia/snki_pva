@@ -1,0 +1,849 @@
+---
+title: "Snail Kite Population Viability Analysis with State-Space models"
+author: "José Miguel Ponciano, Orlando Acevedo-Charry, Caroline Poli, Lara Elmquist, & Miguel A. Acevedo"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  bookdown::html_document2:
+    toc: yes
+    toc_float: true
+    number_sections: yes
+    fig_caption: true
+    df_print: paged
+subtitle: Stochastic Gompertz State-Space model with Poisson observation error
+editor_options:
+  chunk_output_type: console
+---
+
+# Introduction
+
+## Objective
+The purpose of this study is to provide South Florida Water Management District (SFWMD) **an estimate of the effect of reduced recruitment into the population**, identifying critical thresholds for productivity under conservative scenarios. A Population Viability Analysis (PVA) shall take into account the impact of reduced nesting (either through failures of nest attempts or through reduced attempts) to the viability of the state-wide snail kite population, as well as whether regional differences in nesting effort are important. In other words, **evaluate the overall impact of reduced nesting, as well as the impact of how that reduction is distributed among six historical breeding regions**.
+
+This work order goal is to provide snail kite nest location and population information for management, as well as developing a PVA for long-term mitigation and restoration planning activities.
+
+# Conceptual framework, packages, and functions
+
+Previous PVAs for the snail kite have used Capture-Mark-Recapture (Resight) models. Here, we will conduct a count-based PVA applying Stochastic State-Space models.
+
+First, let's load the packages in `R` needed to run this code
+
+```{r, message=FALSE}
+# R functions and datasets to support "Modern Applied Statistics with S", 
+  #a book from W.N. Venables and B.D. Ripley
+library(MASS); 
+# R functions for Data Cloning (maximum likelihood estimation using Bayesian MCMC)
+library(dclone); 
+# Create plots for MCMC output
+library(mcmcplots)
+# Data manipulation and elegant figures
+library(tidyverse)
+# Palettes inspired by works at the Metropolitan Museum of Art in New York
+library(MetBrewer)
+```
+
+## Simple (one-population) Stochastic Gompertz State Space
+
+Let $S_{t}$ be the (unobserved) population abundance at time $t$, the latent or state ecological process for the Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The population dynamic is $S_t = S_{t-1} ~e^{a+b*\ln{S_{t-1}} + E_t}$), where $a$ and $b$ are constants representing the intrinsic population growth rate and the strength of density dependence, respectively, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{S_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). 
+
+This population model has three unknown parameters: $a$, $c$, and $\sigma^2$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The transition probability distribution of this logarithmic abundance model is normal, with mean and variance changing as a function of time. The parameter $c$ represents the strength of density-dependence ([Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002)). If the strength of density dependence ($c$) ranges $-1<c<1$, the long-run probability distribution of log-abundance approaches a time-independent normal stationary distribution ($X_t→X_∞$), with mean $\frac{a}{1-c}$ and variance $\frac{\sigma^2}{1-c^2}$. Thus, instead of approaching a single population abundance value, or a deterministic carrying capacity, the density-dependent stochastic GSS model approaches a stationary distribution, a cloud of points around which the population fluctuates ([Dennis & Taper, 1994](https://doi.org/10.2307/2937041); [Wolda, 1989](https://doi.org/10.1007/BF00377095)). The mean of this distribution, $\mu = \frac{a}{1-c}$, represents a long-term expected (log)population size ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). As mentioned above, the density-independent stochastic exponential growth model of [Dennis *et al.* (1991)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004) is attained when $b=0$ ($c=1$). The state-space model formulation for these two models is completed with the specification of the sampling (observation) error model.
+
+We assumed that the observed counts at time $t$, $N_t$, is a sample drawn from the Poisson process which mean $\lambda_t$ is the exponential latent state ($X_t$), $N_t \sim \text{Poisson}(\lambda_t) = \text{Poisson}(e^{X_t})$. Note that this differs from the observer error definition of GSS in [Dennis *et al.* (2006)](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2). 
+
+To generalize the GSS for unequal sampling intervals (and NAs), we take advantage of the mathematical insight that the solution of the discrete-time GSS model matches the solution at discrete time points of a diffusion process, which is a continuous time stochastic process. Specifically, the solution of the discrete time Gompertz model in the log scale matches exactly the Ornstein-Uhlenbeck (OU) Gaussian diffusion process ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). This OU diffusion process is a well-known continuous-time version of an autoregressive process of order 1, characterized by a joint multivariate normal distribution of values across time points. The process is defined by its infinitesimal mean, variance, and covariance parameters ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1); [Ponciano, 2018](https://doi.org/10.1016/j.tpb.2017.10.007)). 
+
+The infinitesimal mean and variance of the process are given by: 
+$m_S (s)= \theta s[\ln \kappa - \ln s]$ and $\sigma_S^2 (s)= \beta^2 s^2$, respectively; here $\theta$ represents the speed of equilibration, $\kappa$ the equilibrium abundance, and $\beta$ scales the random perturbation by environment stochasticity, $dW$. A smooth transformation to $S_t$, given by $X_t=g(S_t)$ (e.g. $X_t=\ln ⁡S_t$), is also a diffusion process whose infinitesimal mean is given by $m_X (x)=m_S (s) g'(s) + 1/2 \sigma_S^2 (s)g''(s)$ and infinitesimal variance by $\sigma_X^2 (x) = \sigma_S^2 s [g' (s)]^2$, where $s=g^{-1} (x)$. This result is the well-known Itô-transformation for diffusion processes widely used in stochastic population dynamics modeling. For $g(s) = \ln s$, the infinitesimal mean simplifies to $m_X (x)= \theta (\mu - x)$, where $\mu = \ln\kappa - \frac{\beta^2}{2 \theta}$, and the infinitesimal variance becomes $\sigma_X^2 (x)= \beta^2$. Thus, the stochastic differential equation of the logarithmic process $X_t$ is $dX_t= \theta(\mu - X_t)dt + \beta dW_t$. If the process starts at an initial log-abundance $X_0=x_0$, the expected value and variance at any time $t$ are given by $\text{E}[X_t | X_0 = x_0] = \mu - (\mu - x_0) e^{\theta - t}$ and $\text{V}[X_t|X_0 = x_0] = \frac{\beta^2}{2\theta} (1-e^{-2\theta})$ respectively ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). Over time, the process converges to a stationary distribution with mean $\mu$ and variance $\frac{\beta^2}{2\theta}$. 
+
+The three unknown parameters to estimate are:
+
+$$
+\begin{array}{ccc}
+\mu &=& \frac{a}{1-c} \\
+\theta &=& -\ln{c} \\
+\sigma^2 &=& \frac{(1-e^{-2\theta})\beta^2}{2\theta} \\
+\end{array}
+$$
+
+## Multiple-subpopulations (regions) Stochastic Gompertz State Space
+
+To include the six regions (e.g., demes, spatially differentiated subpopulations) of study in the snail kite superpopulation in Florida, we can adjust the equation for the population ecological process as:
+
+$$
+S_{t+1,i} = S_{t,i}\times\exp\left\{a_{i} + b_{i1}\ln\,S_{t,1} + b_{i2}\ln\,S_{t,2} + b_{i3}\ln\,S_{t,3} + b_{i4}\ln\,S_{t,4} + b_{i5}\ln\,S_{t,5} + b_{i6}\ln\,S_{t,6}+ E_{t,i} \right\},\\\quad i=1,2,3,4,5,6. 
+$$
+\noindent where $S_{t+1,i}$ is the abundance population in the region $i$ in $t+1$, which depends on the previous time abundance in that same region ($S_{t,i}$) and it is affected by the intrinsic growth parameter ($a_{i}$), the density dependence in that region ($b_{ii}\ln\,S_{t,i}$), and the density dependence and previous time abundance from the other regions ($b_{ij}\ln\,S_{t,j}$). The $E_{t,i}$ are $\rm{iid}$ Normal with mean 0 and variance $\sigma^{2}$. Let's set $\ln\,S_{t,i} = X_{t,i}$. Then, the model can be re-written using as a response variable the abundance change of the $i^{th}$ region:
+
+$$
+X_{t+1,i} - X_{t,i} = a_{i} + b_{i1}X_{t,1} + b_{i2}X_{t,2} + b_{i3}X_{t,3} + b_{i4}X_{t,4} + b_{i5}X_{t,5} + b_{i6}X_{t,6} + E_{t,i} ,\\\quad i=1,2,3,4,5,6. 
+$$
+In other words, the $b_{ii}$ are interpreted as the intra-region, density-dependent effects and the $b_{ij}$ are interpreted as the non-linear effect of region $(j)$'s population density on the growth rate of the population $(i)$
+
+The model in full matrix format is:
+$$
+\mathbf{X}_{t+1} = \mathbf{a} + (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
+$$
+
+The components of this matrix model are
+
+First, the State vector:
+$$
+\mathbf{X}_t = \begin{bmatrix} 
+        X_{t,1} \\ 
+        X_{t,2} \\ 
+        X_{t,3} \\
+        X_{t,4} \\ 
+        X_{t,5} \\ 
+        X_{t,6}
+    \end{bmatrix},
+$$
+  
+then, the vector of intrinsic growth parameters for each region:
+$$
+\mathbf{a} = \begin{bmatrix} 
+        a_1 \\ 
+        a_2 \\ 
+        a_3 \\
+        a_4 \\ 
+        a_5 \\ 
+        a_6
+\end{bmatrix}.
+$$
+Next, the simple identity matrix (the equivalent of number 1 for matrices): 
+
+$$
+\mathbf{I} = \begin{bmatrix} 
+        1 & 0 & 0 & 0 & 0 & 0 \\ 
+        0 & 1 & 0 & 0 & 0 & 0 \\ 
+        0 & 0 & 1 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 1 & 0 & 0 \\ 
+        0 & 0 & 0 & 0 & 1 & 0 \\ 
+        0 & 0 & 0 & 0 & 0 & 1
+    \end{bmatrix},
+$$
+
+\noindent followed by the key parameter in this model, which is the interaction matrix:
+$$
+    \mathbf{B} = \begin{bmatrix} 
+        b_{11} & b_{12} & b_{13} & b_{14} & b_{15} & b_{16} \\ 
+        b_{21} & b_{22} & b_{23} & b_{24} & b_{25} & b_{26} \\ 
+        b_{31} & b_{32} & b_{33} & b_{34} & b_{35} & b_{36} \\
+        b_{41} & b_{42} & b_{43} & b_{44} & b_{45} & b_{46} \\ 
+        b_{51} & b_{52} & b_{53} & b_{54} & b_{55} & b_{56} \\ 
+        b_{61} & b_{62} & b_{63} & b_{64} & b_{65} & b_{66}
+    \end{bmatrix}.
+$$
+
+\noindent The final component is the vector of environmental noise values for every time step as a multivariate normal distribution (MVN):
+
+$$
+\mathbf{E}_t \sim \text{MVN}\left(\begin{bmatrix} 0 \\ 0 \\ 0 \\ 0 \\ 0 \\ 0 \end{bmatrix}, \sigma^2\mathbf{I}\right).
+$$
+
+This matrix model is arrived at by writing the model equations for each region \(i=1,2,3,4,5,6\):
+$$
+\begin{align}
+X_{t+1,1} &= a_1 + (1 + b_{11})X_{t,1} + b_{12}X_{t,2} + b_{13}X_{t,3} + b_{14}X_{t,4} + b_{15}X_{t,5} + b_{16}X_{t,6} +E_{t,1}, \\
+X_{t+1,2} &= a_2 + b_{21}X_{t,1} + (1 + b_{22})X_{t,2} + b_{23}X_{t,3} + b_{24}X_{t,4} + b_{25}X_{t,5} + b_{26}X_{t,6} + E_{t,2}, \\
+X_{t+1,3} &= a_3 + b_{31}X_{t,1} + b_{32}X_{t,2} + (1 + b_{33})X_{t,3} + b_{34}X_{t,4} + b_{35}X_{t,5} + b_{36}X_{t,6} + E_{t,3}, \\
+X_{t+1,4} &= a_4 + b_{41}X_{t,1} + b_{42}X_{t,2} + b_{43}X_{t,3} + (1 + b_{44})X_{t,4} + b_{45}X_{t,5} + b_{46}X_{t,6} +E_{t,4}, \\
+X_{t+1,5} &= a_5 + b_{51}X_{t,1} + b_{52}X_{t,2} + b_{53}X_{t,3} + b_{54}X_{t,4} + (1 + b_{55})X_{t,5} + b_{56}X_{t,6} + E_{t,5}, \\
+X_{t+1,6} &= a_6 + b_{61}X_{t,1} + b_{62}X_{t,2} + b_{63}X_{t,3} + b_{64}X_{t,4} + b_{65}X_{t,5} + (1 + b_{66})X_{t,6} + E_{t,6},
+\end{align}
+$$
+
+which fully written in matrix format looks like this:
+$$
+\begin{bmatrix}
+X_{t+1,1} \\ 
+X_{t+1,2} \\ 
+X_{t+1,3} \\
+X_{t+1,4} \\ 
+X_{t+1,5} \\ 
+X_{t+1,6}
+\end{bmatrix}
+= 
+\begin{bmatrix}
+a_1 \\ 
+a_2 \\ 
+a_3 \\
+a_4 \\ 
+a_5 \\ 
+a_6
+\end{bmatrix}
++
+\left(
+\begin{bmatrix}
+1 & 0 & 0 & 0 & 0 & 0 \\ 
+0 & 1 & 0 & 0 & 0 & 0 \\ 
+0 & 0 & 1 & 0 & 0 & 0 \\
+0 & 0 & 0 & 1 & 0 & 0 \\ 
+0 & 0 & 0 & 0 & 1 & 0 \\ 
+0 & 0 & 0 & 0 & 0 & 1
+\end{bmatrix}
++
+\begin{bmatrix}
+b_{11} & b_{12} & b_{13} & b_{14} & b_{15} & b_{16} \\ 
+b_{21} & b_{22} & b_{23} & b_{24} & b_{25} & b_{26} \\ 
+b_{31} & b_{32} & b_{33} & b_{34} & b_{35} & b_{36} \\
+b_{41} & b_{42} & b_{43} & b_{44} & b_{45} & b_{46} \\ 
+b_{51} & b_{52} & b_{53} & b_{54} & b_{55} & b_{56} \\ 
+b_{61} & b_{62} & b_{63} & b_{64} & b_{65} & b_{66}
+\end{bmatrix}
+\right)
+\begin{bmatrix}
+X_{t,1} \\ 
+X_{t,2} \\ 
+X_{t,3} \\
+X_{t,4} \\ 
+X_{t,5} \\ 
+X_{t,6}
+\end{bmatrix}
++
+\begin{bmatrix}
+E_{t,1} \\ 
+E_{t,2} \\ 
+E_{t,3} \\
+E_{t,4} \\ 
+E_{t,5} \\ 
+E_{t,6}
+\end{bmatrix}.
+$$
+
+The effect of migration between region $i$ and region $j$ is specified in the $\mathbf{B}$ matrix elements $b_{ij}, i\neq j$. We will assume that the probability $m$ that migration into a region $i$ from a region $j$ will have an effect in the growth rate of region $i$ is a constant weighted by the distance between these two regions. Thus, we set $b_{ij} = \frac{m}{d_{ij}}, i\neq j$, where $d_{ij}$ is the distance between these two regions. We note that, $m$ can be interpreted as the migration probability out of a region, if that region is only 1 spatial unit away from another region. If there are obvious covariates to model $m$, they could be included in the model, with the caveat that more parameters would need to be specified to phrase such dependency(ies) of $m$. Finally, note that the sum of the identity matrix with the $\mathbf{B}$ matrix could be simply re-written as a single matrix:
+
+$$
+\begin{bmatrix}
+b_{11}+1 & b_{12} & b_{13} & b_{14} & b_{15} & b_{16} \\ 
+b_{21} & b_{22}+1 & b_{23} & b_{24} & b_{25} & b_{26} \\ 
+b_{31} & b_{32} & b_{33}+1 & b_{34} & b_{35} & b_{36} \\
+b_{41} & b_{42} & b_{43} & b_{44}+1 & b_{45} & b_{46} \\ 
+b_{51} & b_{52} & b_{53} & b_{54} & b_{55}+1 & b_{56} \\ 
+b_{61} & b_{62} & b_{63} & b_{64} & b_{65} & b_{66}+1
+\end{bmatrix} =
+\begin{bmatrix}
+c_{11} & b_{12} & b_{13} & b_{14} & b_{15} & b_{16} \\ 
+b_{21} & c_{22} & b_{23} & b_{24} & b_{25} & b_{26} \\ 
+b_{31} & b_{32} & c_{33} & b_{34} & b_{35} & b_{36} \\
+b_{41} & b_{42} & b_{43} & c_{44} & b_{45} & b_{46} \\ 
+b_{51} & b_{52} & b_{53} & b_{54} & c_{55} & b_{56} \\ 
+b_{61} & b_{62} & b_{63} & b_{64} & b_{65} & c_{66}
+\end{bmatrix} = \mathcal{B}
+$$
+\noindent The $c_{ii}$ constants define the strength of density dependence (see [Ponciano *et al.*, (2018)](https://doi.org/10.1016/j.tpb.2018.04.002) for a formal definition). The smaller the values while being less than 1, the stronger the density-dependent effects. The closer these values are to 1, the closer the system is to density independence with $c_{ii} = 1$ denoting perfect density independence. In what follows, instead of the matrix $\mathbf{B}$ we will use the matrix $\mathcal{B}$.
+
+Finally, the Poisson observation process is also extended to the different regions as
+
+$$
+N_{i,t} \sim \text{Poisson}(\lambda_{i,t}) = \text{Poisson}(e^{X_{t,i}})
+$$
+or in vector form as
+
+$$
+\mathbf{N}_{t} \sim \text{Poisson}(e^{\mathbf{X}_{t}})
+$$
+
+## Data processing for parameter estimation
+
+We will assume that surveys 4, 5, and 6 constitute each three replicates for the annual population abundance counts. We will processing the original data to have:
+
+1.  Three matrices, each with 6 + 1 rows (one per subpopulation + "OTHER") and as many columns as years the SNKI monitoring has lasted
+2.  Three accompanying matrices that have a number one or a zero in each cell indicating whether for that cell, which is a combination of year and population, an "NA" is in the corresponding count matrix. These matrices will be useful for the JAGS estimation procedure.
+
+```{r Reading the data}
+rawdat <- read.csv("Code/snailkite counts 1997_2025.csv")
+head(rawdat, 12) # first 12 rows
+tail(rawdat, 12) # last 12 rows
+```
+
+Note that every row represent a survey (1 to 6; column `survey_num`) per year (1997 to 2025; column `year`), with 174 survey counts identified in column `X` ($6 \times 29 = 174$). The remain columns present the count data per region (or 'deme').
+
+We can extract information from these dataset to be organized as the modeling requires:
+
+```{r data values}
+names.rawdat <- names(rawdat)
+deme.names <- c("EAST","EVER","KRV","OKEE","PP","SJM","OTHER" )
+cols.with.counts <- match(deme.names, names.rawdat)
+
+years <- unique(rawdat$year)
+nyears <- length(years)
+year.col <- which(names.rawdat=="year",arr.in=TRUE)
+```
+
+We are using a simple time scale from 0 to 28 `tt`, but we can use the 'years' vector above to do the plots. 
+```{r time vector}
+tt <- years - years[1]
+```
+
+We can also organize the number of surveys
+```{r list of surveys}
+# List the survey numbers:
+surv.num <- unique(rawdat$survey_num)
+```
+
+We can save the reorganized data in a list of three matrices, one per survey (Surveys 4, 5, and 6 are `S4mat`, `S5mat`, and `S6mat`, respectively). We can also extract the NA presence in a list of three matrices (`NAS.list <- list(NA4mat = S4mat, NA5mat=S5mat, NA6mat=S6mat)`).
+
+```{r empty lists of matrices to reorganize data}
+S4mat <- S5mat <- S6mat <- matrix(0, nrow=7, ncol=nyears)
+
+Counts.list <- list(S4mat = S4mat, S5mat=S5mat, S6mat=S6mat)
+NAS.list  <- list(NA4mat = S4mat, NA5mat=S5mat, NA6mat=S6mat)
+short.inds.list <- list()
+```
+
+And finally, we can iterativelly for each of the three surveys (`i in 1:3`) fill the matrices in the empty lists. First we will use the survey number to locate our survey of interest (`surv.num[(i+3)]`). Then, we ask the row number of the surveys within the `rawdat` dataset. We extract the rows for each survey in each region or subpopulation, and transpose this subset `t()`. The columns of this transposed subset correspond to the time series vector `tt` (because is only one of the surveys), so from 0 to 28 (29 years). This matrix is saved in `Counts.lists`. Then we identify the years with NA for each supbopulation, and save them in `NAS.list`. Finally, for each population (6 + "OTHER"), we save the counts with NAs.
+```{r}
+for(i in 1:3){
+  
+  SN <- surv.num[(i+3)]
+  
+  ith.rows   <- which(rawdat$survey_num==SN, arr.ind=TRUE)
+  
+  #ith.datmat <- rawdat[ith.rows, c(year.col,cols.with.counts)]
+  ith.datmat <- t(rawdat[ith.rows, cols.with.counts])
+  colnames(ith.datmat) <- tt
+  
+  Counts.list[[i]] <- ith.datmat
+  
+  ith.isnamat <- 1-is.na(ith.datmat)
+  NAS.list[[i]] <- ith.isnamat
+  
+  ith.shortind.list <- list()
+  for(j in 1:7){
+    
+    ith.shortind.list[[j]] <- which(ith.isnamat[j,]==1,arr.ind=TRUE)
+    
+  }
+  names(ith.shortind.list) <- deme.names
+  short.inds.list[[i]] <- ith.shortind.list 
+    
+}
+names(short.inds.list) <- c("short.inds4","short.inds5", "short.inds6")
+```
+
+And save this data
+```{r}
+save.image("Code/SNKIdata.RData")
+```
+
+## Functions for initial guesses of parameters and random MVN generator
+
+We will need initial or "naive" guesses of the parameters to fit the state-space model. This could be roughly computing by providing the vector of (log)abundance observations `Yobs` ($\mathbf{N}$) and the vector of observation times `Tvec` with the function `guess.calc()`:
+
+```{r guess.calc}
+guess.calc <- function(Yobs,Tvec){
+  
+  #  For calculations, time starts at zero.
+  T.t <-Tvec-Tvec[1];
+  #  Number of time series transitions, q.
+  q <- length(Yobs)-1;
+  #  q+1 gives the length of the time series.
+  qp1 <- q+1;
+  #  Time intervals
+  S.t <- T.t[2:qp1]-T.t[1:q]; 
+  #  Mean of the observations
+  Ybar <- mean(Yobs);        
+  # Variance of the observations
+  Yvar <- sum((Yobs-Ybar)*(Yobs-Ybar))/q;
+  # Initial mu estimate (at stationary distribution)
+  mu1 <- Ybar;
+  
+  # Kludge an initial value for theta based on mean of Y(t+s) given Y(t).
+  th1 <- -mean(log(abs((Yobs[2:qp1]-mu1)/(Yobs[1:q]-mu1)))/S.t);            
+  # Moment estimate using stationary
+  bsq1 <- 2*th1*Yvar/(1+2*th1);         
+  # Observation error variance, assumed as first guess as betasq=tausq.
+  tsq1 <- bsq1;                         
+  
+  # What to do if initial guesses is three 0's (or NAs)? Assume arbitrary values
+  three0s <- sum(c(th1,bsq1,tsq1))
+  if(three0s==0|is.na(three0s)){
+    th1 <- 0.5;
+    bsq1 <- 0.09; 
+    tsq1 <- 0.23;
+    }
+  
+  out1 <- c(th1,bsq1,tsq1);
+  
+  # What to do if initial guesses are too little? Assume arbitrary values
+  if(sum(out1<1e-7)>=1){
+    out1 <- c(0.5,0.09,0.23)
+  }
+  
+  out <- c(mu1,out1);
+  return(abs(out))
+}
+```
+
+To take into account possible NAs in the counts, we can wrap these initial guess estimator function `guess.calc()` into another function `guess.calc2.0()`:
+
+```{r guess.calc2.0}
+guess.calc2.0<- function(TimeAndNs){
+  
+  newmat <- TimeAndNs 
+  isnas <- sum(is.na(TimeAndNs))
+  
+  if(isnas >= 1){
+    
+    isnaind <- which(is.na(TimeAndNs[,2]), arr.ind=TRUE)
+    newmat <- TimeAndNs[-isnaind,]
+    newmat[,1] <- newmat[,1] - newmat[1,1]
+    
+  }
+  
+  init.guess <- guess.calc(Yobs = log(newmat[,2]), Tvec=newmat[,1])
+  
+  mu1  <- init.guess[1]
+  th1  <- init.guess[2]
+  bsq1 <- init.guess[3]
+  sigsq1<- ((1-exp(-2*th1))*bsq1)/(2*th1)
+  
+  out <- c(mu=mu1, theta=th1, sigmasq = sigsq1)
+  return(out)
+}
+```
+
+We also need a Multivariate Normal random generator function `randmvn()`, which needs:
+
+  1.  The number of random samples of a MVN vector: `n`
+  2.  The mean vector of the MVN distribution to sample from: `mu.vec`
+  3.  The variance-covariance matrix of the MVN distribution to sample from: `cov.mat`
+
+```{r randmvn}
+randmvn <- function(n, mu.vec, cov.mat){
+
+  # Save the length of the mean vector of the multivariate normal distribution to sample
+  p         <- length(mu.vec);
+  # The Cholesky decomposition
+    #(factorization of a real symmetric positive-definite sqr matrix)
+  Tau       <- chol(cov.mat, pivot=TRUE);
+  # generate normal deviates outside loop
+  Zmat      <- matrix(rnorm(n=p*n,mean=0,sd=1),nrow=p,ncol=n);
+
+  # empty matrix
+  out       <- matrix(0,nrow=p,ncol=n);
+  # iterate
+  for(i in 1:n){
+    Z       <- Zmat[,i];
+    out[,i] <- t(Tau)%*%Z + mu.vec
+  }
+
+  return(out)
+}
+```
+
+
+# Assymetric migration effects model
+
+## Recover data preprocessed
+
+We can recover the data processed, which include three surveys (4, 5, 6) for six regions across 29 years. However, the current year is incomplete, having only NAs, thus we removed and ended with three surveys for 28 years
+```{r}
+load("Code/SNKIdata.RData") # Load raw data
+
+S4mat <- Counts.list$S4mat[1:6,1:28] # Cut the last time step: no data anywhere
+S5mat <- Counts.list$S5mat[1:6,1:28]
+S6mat <- Counts.list$S6mat[1:6,1:28]
+
+NA4mat <- NAS.list$NA4mat[1:6,1:28]
+NA5mat <- NAS.list$NA5mat[1:6,1:28]
+NA6mat <- NAS.list$NA6mat[1:6,1:28]
+```
+
+Now we pick a single time series of counts, remove NAs, and "`cbind()` it" to a column of time, thus getting a matrix with time as a first column and counts as a second column. We use this matrix to compute a guess of the model parameters.
+
+```{r}
+ts.4guess  <- S4mat[3,]
+tvec4guess  <- as.numeric(colnames(S4mat))
+onets4guess <- cbind(tvec4guess, ts.4guess) # No NAS for KRV # log(ts.4guess) changed to ts.4guess
+naive.guess <- guess.calc2.0(TimeAndNs = onets4guess)
+naive.guess
+```
+
+These object `naive.guess` include the mean log abundance ($\mu$), the speed of equilibration ($\theta$), and the stochastic environmental variation ($\sigma^2$).
+
+Now, we can bring the distance between regions, as using the centroid and distance from the edge of a convex polygon of the historical geolocation of nests in each region. The data was provided in meters, but it could be convenient to convert it to kilometers. In addition, we assign the row names that matches with our survey matrices.
+```{r}
+# mean distance from the centroid 
+centr.dists <- read.csv("Code/Demes_centroid distance in meters.csv")[,-1]
+centr.dists <- as.matrix(centr.dists)/1000
+rownames(centr.dists) <- rownames(S4mat)
+centr.dists
+
+# minimal distance between edges of the convex polygon of nests
+min.condists <- read.csv("Code/Demes_minimum distance in meters.csv")[,-1]
+min.condists <- as.matrix(min.condists)/1000
+rownames(min.condists) <- rownames(S4mat)
+min.condists
+```
+
+The number of (sub)populations `p` serves to construct the initial values for the model. These initial values are a list of a vector at the log scale. (por qué?)
+```{r}
+p <- nrow(S4mat)
+myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu = mean(log(ts.4guess)), why log of the log?
+                lthetavec = log(rep(naive.guess[2],p)), # why theta in log?
+                lsigmasq = log(naive.guess[3])) # why sigmasq in log?
+```
+
+And we can define the "dinvmat" choosing one of the distance matrices (qué era esto?)
+```{r}
+dmat <- centr.dists 
+dinvmat <- (dmat/dmat^2)  
+diag(dinvmat) <- rep(0,p)
+dinvmat
+```
+
+## Data cloning model fit
+
+Using MCMC algorithms (through JAGS, for example), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters. 
+
+```{r Data cloning model}
+MGSS_DC3.0 <- function(){
+  ##### Priors (no cloning)
+  lmuvec    ~ dmnorm(mupmean, muprec)
+  lthetavec ~ dmnorm(lthetamean, lthetaprec)
+  lsigmasq ~ dnorm(0, 1)
+  #mig ~ dbeta(2,2)
+  mig.near ~ dnorm(0,1)
+  mig.far ~ dnorm(0,1)
+  
+  sigmasq <- exp(lsigmasq)  
+  for(pp in 1:p){
+    muvec[pp] <- exp(lmuvec[pp])
+    thetavec[pp] <- exp(lthetavec[pp])
+    cvec[pp] <- exp(-thetavec[pp])
+  }
+  
+  Sigma <- (1/sigmasq)*Ip
+  
+  for(m in 1:p){
+    for(n in 1:p){
+      B[m,n] <- ifelse((m==n),cvec[m],ifelse(
+        (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+        dinvmat[m,n]*mig.near,dinvmat[m,n]*mig.far)
+      )
+    }
+  }
+  
+  A[1:p]  <- (Ip - B[1:p,1:p])%*%muvec
+  
+  for(k in 1:K){
+    ##### ---- Likelihood (data cloning) ---- #####
+    X[1:p,1,k] ~ dmnorm(muvec, Sigma)
+    for(h in 1:p){
+      N4[h,1,k] ~ dpois(exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(exp(X[h,1,k]))
+    }
+    for( i in 2:qp1){ 
+      ## Process error
+      X[1:p,i,k]  ~ dmnorm(A[1:p] + B[1:p,1:p]%*%X[1:p,(i-1),k], Sigma); 
+      for(j in 1:p){
+        N4[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error        
+      }
+    }
+  }  
+}
+```
+
+We should bundle data for Data cloning fitting. This data list includes a dimension of the clones $K = 1$ that will be used to replicate the model likelihood subsection. It also includes the three replicates per year (`S4mat`, `S5mat`, `S6mat`), but formatted as an array of 6 regions `p` x 28 surveys x a 3rd dimension for the clones. The length of the time series (`qp1`) and the number of regions or (sub)populations (`p`) are used for the iterative process within the model. We provide a vector for the priors of the mean log-abundance `mupmean` and $\log{\theta}$ mean `lthetamean`, with their corresponding variance matrices `muprec` and `lthetaprec` (in precision terms for JAGS). The identity matrix `Ip` brings the mathematical form of 
+
+$$
+\mathbf{I} = \begin{bmatrix} 
+        1 & 0 & 0 & 0 & 0 & 0 \\ 
+        0 & 1 & 0 & 0 & 0 & 0 \\ 
+        0 & 0 & 1 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 1 & 0 & 0 \\ 
+        0 & 0 & 0 & 0 & 1 & 0 \\ 
+        0 & 0 & 0 & 0 & 0 & 1
+    \end{bmatrix},
+$$
+while the distance matrix `dinvmat` (no recuerdo por qué era asi). In the model, we have included a step-stone process of movement, represented in the matrix `step.stone`.
+
+```{r Data for dclone}
+data4dclone <- list(K=1, 
+                    N4=dcdim(array(S4mat,dim=c(p,ncol(S4mat),1))), 
+                    N5=dcdim(array(S5mat,dim=c(p,ncol(S5mat),1))), 
+                    N6=dcdim(array(S6mat,dim=c(p,ncol(S6mat),1))), 
+                    qp1=ncol(S4mat), 
+                    p=p, 
+                    mupmean=rep(6,p), 
+                    muprec=(1/3)*diag(p),
+                    lthetamean = rep(0.5,p), 
+                    lthetaprec =  10*diag(p),
+                    Ip =  diag(p),
+                    dinvmat = dinvmat,
+                    step.stone = matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                                        nrow=6,ncol=2,byrow=TRUE)
+)
+```
+
+Finally, we set up the number of clones, the MCMC chains, which parameters to sample, and fit the data cloning model (it takes some time, so it is in `eval = FALSE` at this moment).
+```{r setup datacloning model fit, eval=FALSE}
+cl.seq <- c(1,8,16);
+n.iter<-100000;n.adapt<-50000;n.update<-100;thin<-10;n.chains<-3;
+
+out.parms <- c("muvec", "cvec", "mig.near", "mig.far", "sigmasq", "A")
+mgssdclone <- dc.fit(data4dclone, 
+                     params=out.parms, 
+                     model=MGSS_DC3.0, 
+                     n.clones=cl.seq,
+                     multiply="K", 
+                     unchanged = c("qp1","p","mupmean","muprec", 
+                      "step.stone", "lthetamean","lthetaprec", "Ip","dinvmat"),
+                     n.chains = n.chains, 
+                     n.adapt=n.adapt, 
+                     n.update=n.update,
+                     n.iter = n.iter, 
+                     thin=thin, 
+                     inits=myinits) 
+saveRDS(mgssdclone, "Code/mgssdclone.RDS")
+```
+
+Let's check this model. We can see the diagnostics for estimability of the parameters with the `dcdiag()` function in the package `dclone`, as well as the `summary` and confidence intervals of the estimates. The variable $\lambda_{max}$ is the largest eigenvalue of the posterior variance covariance matrix, while `ms.error` represents the mean squared error, and the $r^2$ is a correlation-like fit statistic. All three statistics should decrease (converge to zero) as a function of the number of clones. 
+
+```{r call dclone model fitted and see diagnostics}
+mgssdclone <- readRDS("Code/mgssdclone.RDS")
+dcdiag(mgssdclone)
+summary(mgssdclone)
+confint(mgssdclone)
+```
+We can save the MLEs and predict the dynamic of the population for each region with the Kalman filter estimates
+
+```{r}
+mlescentrdist <- summary(mgssdclone)[[1]]
+mles4kalman <- mlescentrdist[,1]
+mles4kalman
+avec4kalman <- mles4kalman[1:6]
+cvec4kalman <- mles4kalman[7:12]
+mig.far4kalman  <- mles4kalman[13]
+mig.near4kalman <- mles4kalman[14]
+muvec4kalman <- mles4kalman[15:20]
+sigsq4kalman <- mles4kalman[21]
+```
+
+## Kalman estimates of abundance with effect of assymetric migration
+
+```{r}
+MGSS_KALMAN2.0 <- function(){
+  
+  A  <- (Ip - B)%*%muvec
+  Sigma <- (1/sigmasq)*Ip
+  
+  ##### ---- Likelihood ---- #####
+  X[1:p,1] ~ dmnorm(muvec, Sigma)
+  for(h in 1:p){
+    N4[h,1] ~ dpois(exp(X[h,1]))
+    N5[h,1] ~ dpois(exp(X[h,1]))    
+    N6[h,1] ~ dpois(exp(X[h,1]))    
+  }
+  for( i in 2:qp1){ 
+    ## Process error
+    X[1:p,i]  ~ dmnorm(A + B%*%X[1:p,(i-1)], Sigma); 
+    for(j in 1:p){
+      N4[j,i]  ~ dpois(exp(X[j,i])) ## Observation error
+      N5[j,i]  ~ dpois(exp(X[j,i])) ## Observation error      
+      N6[j,i]  ~ dpois(exp(X[j,i])) ## Observation error
+    }
+  }
+}
+```
+
+Data for Kalman estimates
+
+```{r}
+step.stone <- matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                     nrow=6,
+                     ncol=2,
+                     byrow=TRUE)
+step.stone
+
+B <- matrix(0,p,p)
+
+for(m in 1:p){
+  for(n in 1:p){
+    B[m,n] <- ifelse((m==n),cvec4kalman[m],ifelse(
+      (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+      dinvmat[m,n]*mig.near4kalman,dinvmat[m,n]*mig.far4kalman)
+    ) #
+    
+  }
+}
+
+B
+
+data4kalman <- list(N4=S4mat,
+                    N5=S5mat,
+                    N6=S6mat,
+                    qp1=ncol(S4mat), 
+                    p=p,
+                    Ip =  diag(p),
+                    muvec = muvec4kalman,
+                    sigmasq = sigsq4kalman, 
+                    B=B
+)
+str(data4kalman)
+```
+
+```{r set up and fit Kalman estimate model}
+n.iter<-100000
+n.adapt<-1000
+n.update<-100
+thin<-10
+n.chains<-3
+
+out.parms <- c("X")
+kalman.mcmcw <- jags.fit(data4kalman, 
+                         params=out.parms, 
+                         model=MGSS_KALMAN2.0, 
+                         n.chains = n.chains, 
+                         n.adapt=n.adapt, 
+                         n.update=n.update, 
+                         n.iter = n.iter, 
+                         thin=thin)
+```
+
+And then, recover the data to see the population trajectories in each region.
+
+```{r}
+Xkalman <-  do.call(rbind, kalman.mcmcw)
+
+Kalman.quants <- apply(Xkalman, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) 
+
+```
+
+Here, we can plot the Kalman estimates, with CI. With classic R code format
+
+```{r classic way}
+len <- ncol(S4mat)
+
+names.quants <- substr(colnames(Kalman.quants), start=1, stop=3)
+X1s <- Kalman.quants[,which(names.quants=="X[1", arr.ind=TRUE)]
+X2s <- Kalman.quants[,which(names.quants=="X[2", arr.ind=TRUE)]
+X3s <- Kalman.quants[,which(names.quants=="X[3", arr.ind=TRUE)]
+X4s <- Kalman.quants[,which(names.quants=="X[4", arr.ind=TRUE)]
+X5s <- Kalman.quants[,which(names.quants=="X[5", arr.ind=TRUE)]
+X6s <- Kalman.quants[,which(names.quants=="X[6", arr.ind=TRUE)]
+
+par(oma=c(1,1,1,1), mar=c(4,5,2,1))
+plot(1:len, X1s[2,], pch=16, type="b", col="red",
+     ylim=c(min(Kalman.quants),max(Kalman.quants)), 
+     main ="SNKI - six regions", 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X1s[1,],rev(X1s[3,])), 
+        col=scales::alpha("red",0.1), border=NA)
+points(1:len, X1s[2,],pch=16, type="b", col="red")
+
+polygon(c(1:len,rev(1:len)), c(X2s[1,],rev(X2s[3,])), 
+        col=scales::alpha("blue",0.1), border=NA)
+points(1:len, X2s[2,],pch=16, type="b", col="blue")
+
+polygon(c(1:len,rev(1:len)), c(X3s[1,],rev(X3s[3,])), 
+        col=scales::alpha("darkgreen",0.1), border=NA)
+points(1:len, X3s[2,],pch=16, type="b", col="darkgreen")
+
+polygon(c(1:len,rev(1:len)), c(X4s[1,],rev(X4s[3,])), 
+        col=scales::alpha("yellow",0.1), border=NA)
+points(1:len, X4s[2,],pch=16, type="b", col="yellow")
+
+polygon(c(1:len,rev(1:len)), c(X5s[1,],rev(X5s[3,])), 
+        col=scales::alpha("purple",0.1), border=NA)
+points(1:len, X5s[2,],pch=16, type="b", col="purple")
+
+polygon(c(1:len,rev(1:len)), c(X6s[1,],rev(X6s[3,])), 
+        col=scales::alpha("orange",0.1), border=NA)
+points(1:len, X6s[2,],pch=16, type="b", col="orange")
+```
+
+Or also with `tidyverse`, converting the matrix form to a dataframe and extracting the values
+
+```{r dataframe adjustment}
+kalman_df <- as.data.frame(Kalman.quants) |>
+  mutate(quantile = rownames(Kalman.quants)) |>
+  pivot_longer(-quantile, 
+               names_to = "state_time", 
+               values_to = "value") |>
+  extract(state_time, 
+          into = c("region", "time"), 
+          regex = "X\\[(\\d+),(\\d+)\\]", convert = TRUE)
+```
+
+And then plot with the names of the regions and in real scale, adding observations
+
+```{r Figure at real scale with obs counts, warning=FALSE}
+kalman_wide <- kalman_df |>
+  mutate(value = exp(value),
+         region = ifelse(region == 1, "EAST",
+                  ifelse(region == 2, "EVER",
+                  ifelse(region == 3, "KRV",
+                  ifelse(region == 4, "OKEE",
+                  ifelse(region == 5, "PP",
+                  ifelse(region == 6, "SJM",
+                  region))))))) |>
+  pivot_wider(names_from = quantile, 
+              values_from = value)
+
+#counts
+S4df <- as.data.frame(S4mat) |>
+  mutate(region = rownames(S4mat)) |>
+  pivot_longer(-region, 
+               names_to = "time", 
+               values_to = "Count4") 
+S5df <- as.data.frame(S5mat) |>
+  mutate(region = rownames(S5mat)) |>
+  pivot_longer(-region, 
+               names_to = "time", 
+               values_to = "Count5") 
+S6df <- as.data.frame(S6mat) |>
+  mutate(region = rownames(S6mat)) |>
+  pivot_longer(-region, 
+               names_to = "time", 
+               values_to = "Count6") 
+
+Countsdf <- S4df |>
+  left_join(S5df) |>
+  left_join(S6df) |>
+  mutate(time = as.numeric(time) + 1)
+
+kalman_wide <- kalman_wide |> 
+  left_join(Countsdf) |>
+  mutate(time = time + 1996)
+
+kalman_wide$region <- factor(kalman_wide$region,
+                             levels = c("EVER",
+                                        "EAST",
+                                        "OKEE",
+                                        "KRV",
+                                        "SJM",
+                                        "PP"))
+
+# Plot using ggplot2
+ggplot(kalman_wide, aes(x = time, y = `50%`, 
+                        color = factor(region), 
+                        fill = factor(region))) +
+  facet_wrap(~region, scales = "free_y", ncol = 2) +
+  geom_line() +
+  geom_ribbon(aes(ymin = `2.5%`, ymax = `97.5%`), 
+              alpha = 0.2, color = NA) +
+  geom_point(aes(y = Count4), shape = 25, fill = NA)+
+  geom_point(aes(y = Count5), shape = 21, fill = NA)+
+  geom_point(aes(y = Count6), shape = 24, fill = NA)+
+  labs(
+    title = "SNKI - Six Regions",
+    x = "Year",
+    y = "Population sizes",
+    color = "Region",
+    fill = "Region"
+    ) +
+  scale_color_manual(values=met.brewer("Homer2", 6)) +
+  scale_fill_manual(values=met.brewer("Homer2", 6)) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+The open points represent three surveys per year (replicates): down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6.
+
+
+# PVA?? - Reduced nesting and the impact of how that reduction is distributed among historical breeding regions??

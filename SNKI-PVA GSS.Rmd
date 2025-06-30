@@ -845,7 +845,7 @@ ggplot(kalman_wide, aes(x = time, y = `50%`,
   theme(legend.position = "none")
 ```
 
-The open points represent three surveys per year (replicates): down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6.
+In this new plot, the open points represent three surveys per year (replicates): down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6.
 
 
 # PVA?? - Reduced nesting and the impact of how that reduction is distributed among historical breeding regions??

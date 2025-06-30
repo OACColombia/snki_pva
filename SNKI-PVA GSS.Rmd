@@ -257,9 +257,9 @@ head(rawdat, 12) # first 12 rows
 tail(rawdat, 12) # last 12 rows
 ```
 
-Note that every row represent a survey (1 to 6; column `survey_num`) per year (1997 to 2025; column `year`), with 174 survey counts identified in column `X` ($6 \times 29 = 174$). The remain columns present the count data per region (or 'deme').
+Note that every row represents a survey (1 to 6; column `survey_num`) per year (1997 to 2025; column `year`), with 174 survey counts identified in column `X` ($6 \times 29 = 174$). The remain columns present the count data per region (or 'deme').
 
-We can extract information from these dataset to be organized as the modeling requires:
+We can extract information from this dataset to be organized according to the modeling requirements:
 
 ```{r data values}
 names.rawdat <- names(rawdat)
@@ -461,9 +461,9 @@ naive.guess <- guess.calc2.0(TimeAndNs = onets4guess)
 naive.guess
 ```
 
-These object `naive.guess` include the mean log abundance ($\mu$), the speed of equilibration ($\theta$), and the stochastic environmental variation ($\sigma^2$).
+The object `naive.guess` include the mean log abundance ($\mu$), the speed of equilibration ($\theta$), and the stochastic environmental variation ($\sigma^2$).
 
-Now, we can bring the distance between regions, as using the centroid and distance from the edge of a convex polygon of the historical geolocation of nests in each region. The data was provided in meters, but it could be convenient to convert it to kilometers. In addition, we assign the row names that matches with our survey matrices.
+Now, we can bring the distance between regions, using the centroid and distance from the edge of a convex polygon of the historical geolocation of nests in each region. The data was provided in meters, but it could be convenient numerically to convert it to kilometers. In addition, we assign the row names that matches with our survey matrices.
 ```{r}
 # mean distance from the centroid 
 centr.dists <- read.csv("Code/Demes_centroid distance in meters.csv")[,-1]
@@ -478,15 +478,15 @@ rownames(min.condists) <- rownames(S4mat)
 min.condists
 ```
 
-The number of (sub)populations `p` serves to construct the initial values for the model. These initial values are a list of a vector at the log scale. **(por qué?)**
+The number of (sub)populations `p` is defined and used to construct the initial values for the model. These initial values are a list of a vector at the log scale. This is a trick to have the priors in the positive domain of the lognormal distribution.
 ```{r}
 p <- nrow(S4mat)
-myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu ≈ mean(log(ts.4guess)), why log of the log?
+myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu ≈ mean(log(ts.4guess)),
                 lthetavec = log(rep(naive.guess[2],p)), # why theta in log?
                 lsigmasq = log(naive.guess[3])) # why sigmasq in log?
 ```
 
-And we can define the "dinvmat" choosing one of the distance matrices **(No recuerdo qué era esto?)**
+We next define the "dinvmat" choosing one of the distance matrices. This is the inverse matrix of distances, because in our model, the effect of one region on the growth rate of another region will be made inversely proportional to their mutual geographical distance.
 ```{r}
 dmat <- centr.dists 
 dinvmat <- (dmat/dmat^2)  
@@ -496,7 +496,7 @@ dinvmat
 
 ## Data cloning model fit
 
-Using MCMC algorithms (through JAGS, for example), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html)). 
+Using MCMC algorithms (through JAGS), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html)). 
 
 ```{r Data cloning model}
 MGSS_DC3.0 <- function(){
@@ -561,7 +561,7 @@ $$
         0 & 0 & 0 & 0 & 0 & 1
     \end{bmatrix},
 $$
-while the distance matrix `dinvmat` **(no recuerdo por qué era asi, misma duda de antes)**. In the model, we have included a step-stone process of movement, represented in the matrix `step.stone`.
+while the distance matrix `dinvmat`. In the model, we have included a step-stone process of movement, represented in the matrix `step.stone`. This is a matrix with 6 rows (one per deme) and two columns.  In these two columns, the i$^\text{th}$ row gives the position (row and column number) in the distance matrix of the closest deme to that i$^\text{th}$ deme.
 
 ```{r Data for dclone}
 data4dclone <- list(K=1, 
@@ -673,7 +673,7 @@ for(m in 1:p){
   }
 }
 
-B
+print(B)
 
 data4kalman <- list(N4=S4mat,
                     N5=S5mat,

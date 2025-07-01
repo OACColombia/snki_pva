@@ -1,6 +1,6 @@
 ---
 title: "Snail Kite Population Viability Analysis with State-Space models"
-author: "José Miguel Ponciano, Orlando Acevedo-Charry, Caroline Poli, Lara Elmquist, & Miguel A. Acevedo"
+author: "José Miguel Ponciano, Orlando Acevedo-Charry, Caroline Poli, Meghan Beatty, Lara Elmquist, & Miguel A. Acevedo"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   bookdown::html_document2:
@@ -246,7 +246,7 @@ $$
 
 ## Data processing for parameter estimation
 
-We will assume that surveys 4, 5, and 6 constitute each three replicates for the annual population abundance counts. We will processing the original data to have:
+We will assume that surveys 4, 5, and 6 constitute each three replicates for the annual population abundance counts per region. We will processing the original data to have:
 
 1.  Three matrices, each with 6 + 1 rows (one per subpopulation + "OTHER") and as many columns as years the SNKI monitoring has lasted
 2.  Three accompanying matrices that have a number one or a zero in each cell indicating whether for that cell, which is a combination of year and population, an "NA" is in the corresponding count matrix. These matrices will be useful for the JAGS estimation procedure.

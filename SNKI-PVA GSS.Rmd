@@ -848,4 +848,151 @@ ggplot(kalman_wide, aes(x = time, y = `50%`,
 In this new plot, the open points represent three surveys per year (replicates): down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6.
 
 
-# PVA?? - Reduced nesting and the impact of how that reduction is distributed among historical breeding regions??
+# Population viability analysis: short, medium and long term projections per deme
+
+First we build a time series simulator, starting from a given initial value.  The function is primed with the estimated true, latent final log-abundances at each deme and the ML estimates of the model parameters. 
+```{r echo=TRUE, eval=TRUE}
+
+MVX.sim <- function(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                    Ip =  diag(p),
+                    muvec = muvec4kalman,
+                    sigmasq = sigsq4kalman, 
+                    B=B),
+                    nsteps=5,
+                    rnames = row.names(S4mat)){
+
+  p  <- theta.list$p
+  Ip <- theta.list$Ip
+  muvec <- theta.list$muvec
+  sigmasq <- theta.list$sigmasq
+  B <- theta.list$B
+  
+  A  <- (Ip - B)%*%muvec
+  Sigma <- (1/sigmasq)*Ip
+  
+  X <- matrix(0,nrow=p,ncol=nsteps)
+  X[1:p,1] <- randmvn(n=1,mu.vec=A+B%*%xo.vec, cov.mat=Sigma)
+  
+  for( i in 2:nsteps){ 
+    ## Process error
+    X[1:p,i] <- randmvn(n=1,mu.vec=A + B%*%X[1:p,(i-1)], cov.mat=Sigma)
+  }
+  
+  X <- cbind(xo.vec,X)
+  row.names(X) <- rnames
+  colnames(X) <- 0:nsteps
+  return(X)
+}
+
+```
+Next, we use this simulator to simulate 100,000 trajectories of length 10 years and store these in a list.
+This list contains 6 matrices, one per deme.  Each matrix has 100,000 rows and 11 columns (10 years plus the initial estimated abundances).
+
+```{r echo=TRUE, eval=TRUE}
+
+sims.list <- list()
+nyears.fwd <- 10
+nsims <- 100000
+
+for(i in 1:p){
+  sims.list[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+}
+names(sims.list) <- row.names(S4mat)
+
+for(i in 1:nsims){
+  
+  ith.sim <- MVX.sim(nsteps=10)
+  
+  sims.list[[1]][i,] <- ith.sim[1,] 
+  sims.list[[2]][i,] <- ith.sim[2,] 
+  sims.list[[3]][i,] <- ith.sim[3,] 
+  sims.list[[4]][i,] <- ith.sim[4,] 
+  sims.list[[5]][i,] <- ith.sim[5,] 
+  sims.list[[6]][i,] <- ith.sim[6,] 
+}
+
+```
+
+Now we compute the year-wise cummulative probability of dropping below an arbitrarily low critical number. Starting at the current population size, this number tracks the probability that the population will drop below a critical number anytime between the present time and every subsequent year, for as many years we simulated the population forward in time.  Here we simulated only 10 years forward in time thus sticking with short-term forecastings. 
+
+```{r echo=TRUE, eval=TRUE}
+
+ncrit <- 100 # change here to a desired number
+lcrit <- log(ncrit)
+nsteps <- 10
+probs.drop <- matrix(0, nrow=6,ncol=nsteps)
+rownames(probs.drop) <- row.names(S4mat)
+for(i in 1:6){
+  
+  simsmat <- sims.list[[i]] # drop the initial log pop size
+  
+  for(j in 2:(nsteps+1)){
+    
+    jthsubmat <- simsmat[,1:j]
+    
+    probs.drop[i,(j-1)] <- sum(jthsubmat<lcrit)/(nrow(jthsubmat)*ncol(jthsubmat))
+  }
+  
+  
+}
+
+print(probs.drop)
+
+```
+
+
+
+```{r eval=FALSE, echo=TRUE}
+MGSS_DC4.0 <- function(){
+  ##### Priors (no cloning)
+  lmuvec    ~ dmnorm(mupmean, muprec)
+  lthetavec ~ dmnorm(lthetamean, lthetaprec)
+  lsigmasq ~ dnorm(0, 1)
+  #mig ~ dbeta(2,2)
+  mig.near ~ dnorm(0,1)
+  mig.far ~ dnorm(0,1)
+  
+  # priors for dvec
+  
+  sigmasq <- exp(lsigmasq)  
+  for(pp in 1:p){
+    muvec[pp] <- exp(lmuvec[pp])
+    thetavec[pp] <- exp(lthetavec[pp])
+    cvec[pp] <- exp(-thetavec[pp])
+  }
+  
+  Sigma <- (1/sigmasq)*Ip
+  
+  for(m in 1:p){
+    for(n in 1:p){
+      B[m,n] <- ifelse((m==n),cvec[m],ifelse(
+        (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+        dinvmat[m,n]*mig.near,dinvmat[m,n]*mig.far)
+      )
+    }
+  }
+  
+  A[1:p]  <- (Ip - B[1:p,1:p])%*%muvec
+  
+  for(k in 1:K){
+    ##### ---- Likelihood (data cloning) ---- #####
+    X[1:p,1,k] ~ dmnorm(muvec, Sigma)
+    for(h in 1:p){
+      N4[h,1,k] ~ dpois(exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(exp(X[h,1,k]))
+    }
+    for( i in 2:qp1){ 
+      ## Process error
+      X[1:p,i,k]  ~ dmnorm(A[1:p] + B[1:p,1:p]%*%X[1:p,(i-1),k] + dvec[1:p]*W[1:p,(i-1)], Sigma); 
+      for(j in 1:p){
+        N4[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error        
+      }
+    }
+  }  
+}
+```

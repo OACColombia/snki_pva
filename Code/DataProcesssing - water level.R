@@ -1,8 +1,14 @@
 # Data is water level per wetland in the six regions. 
 # There are three documents:
-  # 1) daily stage in each wetland.csv
+  # 1) wetlands and demes.csv
   # 2) snailkite counts by wetland 1997_2025.csv
-  # 3) wetlands and demes.csv
+  # 3) daily stage in each wetland.csv
+
+# And we are aiming to generate three matrices to use in the second objectiv
+
+  # 1) the counts (three surveys as replicates)
+  # 2) the mean monthly water level (should be corrected with dates of surveys?)
+  # 3) the %CV of the monthly water level (also to be updated)
 
 library(tidyverse)
 
@@ -62,16 +68,22 @@ monthly_wetland_water <- daily_wetland_water |>
 
 # which wetland in each region has more information?
 snki_N_wetland_region |>
+  # joint the monthly level of water per wetland
   left_join(monthly_wetland_water) |> 
+  # to summarize, `group_by()`
   group_by(region,wetland) |>
-  drop_na() |>
+  # remove NA surveys
+  drop_na(count) |>
+  # how many surveys per wetland?
   count() |> 
-  arrange(-n) |> 
+  # sort the information (for Table 1 in the report)
+  arrange(region, -n) |> 
   as.data.frame()
 
 snki_N_water <- snki_N_wetland_region |>
   left_join(monthly_wetland_water) |>
   ungroup() |>
+  # here we can select the wetlands with more data, or representative of the demes
   filter(wetland %in% c(
     "East.Lake.Tohopekaliga", # KRV
     "SJM", # SJM
@@ -80,6 +92,7 @@ snki_N_water <- snki_N_wetland_region |>
     "Grassy.Waters.Preserve", # EAST
     "Paynes.Prairie" # PP
     )) |>
+  # unify in a single name
   mutate(region.wetland = paste(region, wetland, sep = "_")) |>
   as.data.frame()
 
@@ -137,4 +150,4 @@ for(i in 1:3){
   WaterCV.list[[i]] <- ith.watCVmat
 }
 
-
+# table of region, wetland, latitude, longitude, and relationship of water level

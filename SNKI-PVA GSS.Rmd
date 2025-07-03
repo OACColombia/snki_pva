@@ -64,7 +64,16 @@ $$
 \end{array}
 $$
 
-Note the direct link between $\theta$ and $c$. 
+Note the direct link between $\theta$ and $c$. Also, note that the quantity $K = \exp\{\mu\} = \exp\{a/(1-c)\}$ corresponds to the carrying capacity value of the deterministic Gompertz difference equation. Typically, in the work with Snail Kites the carrying capacity population size is defined as the "breeding carrying capacity", or the maximum number of breeders a given population can sustain.  This definition replaces the traditional carrying capacity defined as the equilibrium population abundance of a population dynamics model.  
+
+In this report we take a completely different approach than these two definitions.  Once the influence of environmental variability is admitted (as it has been the practice since the seminal paper of Dennis et al 1991), a single point equilibrium value looses meaning.  The return point of a population size is no longer a single equilibrium value.  Rather, the equilibrium of a stochastic population model is a long-term stationary distribution of population sizes, a cloud of points (Wolda 1989) around which population fluctuates. This stationary distribution is approximated under the Gompertz model with a positively skewed log-normal distribution (Dennis et al 2006). The ecological ramification of this conceptualization of equilibrium is that persistence above any threshold can be defined as a probability: it is the area under that log-normal probability density function to the right of that threshold.  This persistence probability represents the long-term average proportion of time the target population size will be found above that particular threshold.
+
+Adopting this definition of persistence probability allows to estimate population persistence outcomes under different thresholds.  As well, this conceptualization allows to examine how any hypothesized change in the growth rate ultimately affects changes in the entire "cloud of points", *i.e.*, changes in the long-run distribution of population sizes.  Thus, estimating a stationary distribution from time series data ultimately gives a benchmark to dimension hypothesized or even recently observed changes in the growth rate as changes in the proportion of time a population size will be found around any set of values.
+
+
+In what follows we will use this conceptualization to 1) estimate/measure the impact of reduced growth rates in persistence probabilities and 2) estimate how changes in water levels affect the growth rate of each deme (sub-population) and how these changes in growth rate affect in turn local and regional persistence probabilities.
+
+Finally, note that an open problem in Conservation Biology is how to best estimate a critical density below which a given population goes extinct with high certainty and above which it persists with high certainty.  Theoretical approaches using stochastic population dynamics models with Allee effects have long defined precisely this critical density, and demonstrated theoretically how the persistence probability of a population indeed dramatically drops below such abundance and increases above it (Dennis 2002). In the last part of this report we give an initial estimate of this critical density by fitting a stochastic model with an Allee effect.
 
 ## Multiple-subpopulations (regions) Stochastic Gompertz State Space
 
@@ -915,11 +924,41 @@ for(i in 1:nsims){
 
 ```
 
-Now we compute the year-wise cummulative probability of dropping below an arbitrarily low critical number. Starting at the current population size, this number tracks the probability that the population will drop below a critical number anytime between the present time and every subsequent year, for as many years we simulated the population forward in time.  Here we simulated only 10 years forward in time thus sticking with short-term forecastings. 
+Now we compute the year-wise cummulative probability of dropping below an arbitrarily low critical number. Starting at the current population size, this number tracks the probability that the population will drop below a critical number anytime between the present time and every subsequent year, for as many years we simulated the population forward in time.  Here we simulated only 10 years forward in time thus sticking with short-term forecastings. The critical abundance used in these simulations was conservatively set as 75\% the estimated mean of the stationary distribution for every deme. This quantity then becomess our standard population viability threshold for every deme in our simulations for this first part of the report.
+
+
+
+The vector of estimated means of the stationary distribution in the log-scale is:
+
+```{r eval=TRUE, echo=TRUE}
+ks <- exp(muvec4kalman)
+names(ks) <- row.names(S4mat)
+print(ks)
+```
+
+In the populaiton size scale however, the mean of the abundances is given by the expected value of the log-normal statioinary distribution for every mean.  This expected value is computed easily since with the model ML estmates we can in turn estimate of the stationary variance for every deme using equation 17 in Ives et al 2003:
+
+```{r echo=TRUE, eval=TRUE}
+Ip <- diag(p)
+Sigma <- (1/sigsq4kalman)*Ip
+
+Ipsq <- diag(p*p)
+vec.Vinf <- solve(Ipsq - kronecker(B,B))%*%as.vector(Sigma)
+Vinf <- matrix(vec.Vinf, nrow=p,ncol=p)
+Vars.inf <- diag(Vinf)
+names(Vars.inf) <- row.names(S4mat)
+
+E.Ns <- exp(muvec4kalman + Vars.inf/2)
+names(E.Ns) <- row.names(S4mat)
+print(E.Ns)
+
+```
+
+
 
 ```{r echo=TRUE, eval=TRUE}
 
-ncrit <- 100 # change here to a desired number
+ncrit <- E.Ns*0.75 # change here to a desired number
 lcrit <- log(ncrit)
 nsteps <- 10
 probs.drop <- matrix(0, nrow=6,ncol=nsteps)
@@ -932,15 +971,36 @@ for(i in 1:6){
     
     jthsubmat <- simsmat[,1:j]
     
-    probs.drop[i,(j-1)] <- sum(jthsubmat<lcrit)/(nrow(jthsubmat)*ncol(jthsubmat))
+    probs.drop[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
   }
   
   
 }
 
 print(probs.drop)
+```
+
+```{r echo=TRUE, eval=FALSE}
+cool.palette <- as.vector(met.brewer("Homer2",6))
+
+mat	<-	matrix(c(rep(c(1,1,1,1),3),rep(2,4)),nrow=4,ncol=4,byrow=T)
+layout(mat)
+par(oma=c(2,2,1,1), mar=c(4,4,4,0.5))
+plot(1:nsteps,probs.drop[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="Years ahead of present", ylab="Pr. Falling Under Conservation Threshold", cex.lab=1.25)
+for(i in 2:6){
+  points(1:nsteps,probs.drop[i,], type="b",  lwd=2, col=cool.palette[i])
+}
+#par(oma=c(1,1,1,1), mar=c(4,4,4,1))
+plot(0,0,type="n",axes=FALSE,xlab="",ylab="",main="")
+legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n",
+       horiz=TRUE)
 
 ```
+![Benchmark probabilities of falling under conservation threshold](PrFall-2.JPEG)
+
+This figure shows that the trends from the last 28 years show that if the environmental scenario keeps fluctuating according to the same patterns for the next 10 years, the chances that the number of kites will drop below 100 in every deme increase over time, except for Payne's Prairie, where those chances stabilize around 0.6. These trends represent the current baseline
+
 
 
 

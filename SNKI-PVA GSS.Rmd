@@ -445,7 +445,7 @@ randmvn <- function(n, mu.vec, cov.mat){
 
 # Assymetric migration effects model
 
-## Bring back the data processed
+## Bringing back the data processed
 
 We can bring back the data processed, which include three surveys (4, 5, 6) per year for six regions across 29 years. However, the current year is incomplete, having only NAs, thus we removed and ended with three surveys for 28 years
 ```{r}
@@ -503,9 +503,11 @@ diag(dinvmat) <- rep(0,p)
 dinvmat
 ```
 
-## Data cloning model fit
+## Model and data cloning ML fit:
 
-Using MCMC algorithms (through JAGS), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html)). 
+Above, we mentioned that we would incorporate the effect of the populatin $j$ on the growth rate of the population $i$ as $b_{ij} = \frac{m}{d_{ij}}, i\neq j$, where $d_{ij}$ is the distance between these two regions. We also mentioned that $m$ could be interpreted as the migration probability out of a region, if that region is only 1 spatial unit away from another region.  This model formulation can be problematic or unrealistic because it automatically sets symmetric effects on the growth rate of one deme on the other.  One alternative is to specify as many $b_{ij}$ parameters as $p(p-1)$ to take in consideration asymmetric effects of migration.  Another option that avoids the specification of $p(p-1)$ extra parameters but still allows for asymmetric effects is to shape the $\mathcal{B}$ matrix as a stepping-stone model where two different $m$ values are specified in the following way.  For every deme, there is one other deme that is the closest to it. Let the closest deme to the $i^{\text{th}}$ deme be labelled with the letter $j$.  Let all other demes be labeled with the letter $k$.  Then, specify  the $b_{ij}$ element of the $i^{\text{th}}$ row of the matrix $\mathcal{B}$ as $\frac{m_\text{close}}{d_{ij}}$ and the five other elements $b_{ik}$ in that row as $\frac{k_\text{close}}{d_{ik}}$.  Then, under this model, the growth rate of every deme becomes the recipient of two different types of effect:  the effect of the closest deme to it and the effect of all the other demes to it.  This model embodies the idea of a stepping-stone or nearest neighbor effects.  The model can be fitted via Maximum Likelihood and the Data Cloning algorithm to retrieve the MLEs (Lele et al 2007, Ponciano et al 2009, Lele et al 2010, Ponciano et al 2012). This algorithm basically uses Bayesian statistics and the statistical theory from Lele et al 2010 to retrieve the ML estimates.  Sampling from the target cloned posterior distribution is achieved through MCMC. Using MCMC algorithms (through JAGS), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Ponciano *et al.* 2009](https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/08-0967.1) , [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html),
+[Ponciano *et al.* 2012](https://academic.oup.com/sysbio/article/61/6/955/1665068)).   The process of estimation starts by specifying the model for JAGS:
+
 
 ```{r Data cloning model}
 MGSS_DC3.0 <- function(){
@@ -558,7 +560,7 @@ MGSS_DC3.0 <- function(){
 }
 ```
 
-We should bundle data for Data cloning fitting. This data list includes a dimension of the clones $K = 1$ that will be used to replicate the model likelihood subsection. It also includes the three replicates per year (`S4mat`, `S5mat`, `S6mat`), but formatted as an array of 6 regions `p` x 28 surveys x a 3rd dimension for the clones. The length of the time series (`qp1`) and the number of regions or (sub)populations (`p`) are used for the iterative process within the model. We provide a vector for the priors of the mean log-abundance `mupmean` and $\log{\theta}$ mean `lthetamean`, with their corresponding variance matrices `muprec` and `lthetaprec` (in precision terms for JAGS). The identity matrix `Ip` brings the mathematical form of 
+We next bundle data for Data cloning fitting into a list. This data list includes a dimension of the clones $K = 1$ that will be used to replicate the model likelihood subsection. It also includes the three replicates per year (`S4mat`, `S5mat`, `S6mat`), but formatted as an array of 6 regions `p` x 28 surveys x a 3rd dimension for the clones. The length of the time series (`qp1`) and the number of regions or (sub)populations (`p`) are used for the iterative process within the model. We provide a vector for the priors of the mean log-abundance `mupmean` and $\log{\theta}$ mean `lthetamean`, with their corresponding variance matrices `muprec` and `lthetaprec` (in precision terms for JAGS). The identity matrix `Ip` brings the mathematical form of 
 
 $$
 \mathbf{I} = \begin{bmatrix} 

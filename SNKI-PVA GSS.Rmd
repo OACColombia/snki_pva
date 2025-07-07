@@ -924,8 +924,7 @@ for(i in 1:nsims){
 
 ```
 
-Now we compute the year-wise cummulative probability of dropping below an arbitrarily low critical number. Starting at the current population size, this number tracks the probability that the population will drop below a critical number anytime between the present time and every subsequent year, for as many years we simulated the population forward in time.  Here we simulated only 10 years forward in time thus sticking with short-term forecastings. The critical abundance used in these simulations was conservatively set as 75\% the estimated mean of the stationary distribution for every deme. This quantity then becomess our standard population viability threshold for every deme in our simulations for this first part of the report.
-
+Now we compute the year-wise cumulative probability of dropping below an arbitrarily low critical number. Starting at the current population size, this number tracks the probability that the population will drop below a critical number anytime between the present time and every subsequent year, for as many years we simulated the population forward in time.  Here we simulated only 10 years forward in time thus sticking with short-term forecasting. The critical abundance used in these simulations was conservatively set as 75\% the estimated mean of the stationary distribution for every deme. This quantity then becomes our standard population viability threshold for every deme in our simulations for this first part of the report.
 
 
 The vector of estimated means of the stationary distribution in the log-scale is:
@@ -936,7 +935,7 @@ names(ks) <- row.names(S4mat)
 print(ks)
 ```
 
-In the populaiton size scale however, the mean of the abundances is given by the expected value of the log-normal statioinary distribution for every mean.  This expected value is computed easily since with the model ML estmates we can in turn estimate of the stationary variance for every deme using equation 17 in Ives et al 2003:
+In the population size scale however, the mean of the abundances is given by the expected value of the log-normal statioinary distribution for every mean.  This expected value is computed easily since with the model ML estmates we can in turn estimate of the stationary variance for every deme using equation 17 in Ives et al 2003:
 
 ```{r echo=TRUE, eval=TRUE}
 Ip <- diag(p)
@@ -973,11 +972,11 @@ for(i in 1:6){
     
     probs.drop[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
   }
-  
-  
 }
 
 print(probs.drop)
+# Now we define a color palette for plotting:
+cool.palette <- as.vector(met.brewer("Homer2",6))
 ```
 
 ```{r echo=TRUE, eval=FALSE}
@@ -997,14 +996,530 @@ legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col
        horiz=TRUE)
 
 ```
-![Benchmark probabilities of falling under conservation threshold](PrFall-2.JPEG)
+![Benchmark probabilities of falling under conservation threshold](PrFall-2.JPEG)<br>
 
-This figure shows that the trends from the last 28 years show that if the environmental scenario keeps fluctuating according to the same patterns for the next 10 years, the chances that the number of kites will drop below 100 in every deme increase over time, except for Payne's Prairie, where those chances stabilize around 0.6. These trends represent the current baseline
+This figure shows that the trends from the last 28 years show that if the environmental scenario keeps fluctuating according to the same patterns for the next 10 years, the chances that the number of kites will drop below 100 in every deme increase over time, except for Payne's Prairie, where those chances stabilize around 0.6. These trends represent the current baseline.
+
+```{r echo=TRUE, eval=FALSE}
+pct.red <- 0.9 # mu reduced by 10 %
+newmus <- muvec4kalman*pct.red
+
+sims.list10pct <- list()
+nyears.fwd <- 10
+nsims <- 100000
+
+for(i in 1:p){
+  sims.list10pct[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+}
+names(sims.list10pct) <- row.names(S4mat)
+
+for(i in 1:nsims){
+  
+  ith.sim <- MVX.sim(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                      Ip =  diag(p),
+                      muvec = newmus,
+                      sigmasq = sigsq4kalman, 
+                      B=B),
+                    nsteps=10,
+                    rnames = row.names(S4mat))
+  
+  sims.list10pct[[1]][i,] <- ith.sim[1,] 
+  sims.list10pct[[2]][i,] <- ith.sim[2,] 
+  sims.list10pct[[3]][i,] <- ith.sim[3,] 
+  sims.list10pct[[4]][i,] <- ith.sim[4,] 
+  sims.list10pct[[5]][i,] <- ith.sim[5,] 
+  sims.list10pct[[6]][i,] <- ith.sim[6,] 
+}
+
+ncrit <- E.Ns*0.75 # change here to a desired number
+lcrit <- log(ncrit)
+nsteps <- 10
+probs.drop10pct <- matrix(0, nrow=6,ncol=nsteps)
+rownames(probs.drop10pct) <- row.names(S4mat)
+for(i in 1:6){
+  
+  simsmat <- sims.list10pct[[i]] # drop the initial log pop size
+  
+  for(j in 2:(nsteps+1)){
+    
+    jthsubmat <- simsmat[,1:j]
+    
+    probs.drop10pct[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
+  }
+}
+
+mat	<-	matrix(c(rep(c(1,1,1,1),3),rep(2,4)),nrow=4,ncol=4,byrow=T)
+layout(mat)
+par(oma=c(2,2,1,1), mar=c(4,4,4,0.5))
+plot(1:nsteps,probs.drop10pct[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="Years ahead of present", ylab="Pr. Falling Under Conservation Threshold", cex.lab=1.25)
+for(i in 2:6){
+  points(1:nsteps,probs.drop10pct[i,], type="b",  lwd=2, col=cool.palette[i])
+}
+#par(oma=c(1,1,1,1), mar=c(4,4,4,1))
+plot(0,0,type="n",axes=FALSE,xlab="",ylab="",main="")
+legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n",
+       horiz=TRUE)
+
+save.image("All-up2-10pctReduction.RData")
+```
+![Benchmark probabilities of falling under conservation threshold with a 10% reduction in the average growth rate](Pr-Fall-10pct.JPEG)<br>
+
+And with a 20\% reduction in the average growth rate we get the following 10 years forecast in the probability of falling under the conservation threshold of 75\% of the mean of the historical stationary distribution:
+
+```{r echo=TRUE, eval=FALSE}
+pct.red <- 0.8 # mu reduced by 10 %
+newmus <- muvec4kalman*pct.red
+
+sims.list20pct <- list()
+nyears.fwd <- 10
+nsims <- 100000
+
+for(i in 1:p){
+  sims.list20pct[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+}
+names(sims.list20pct) <- row.names(S4mat)
+
+for(i in 1:nsims){
+  
+  ith.sim <- MVX.sim(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                      Ip =  diag(p),
+                      muvec = newmus,
+                      sigmasq = sigsq4kalman, 
+                      B=B),
+                    nsteps=10,
+                    rnames = row.names(S4mat))
+  
+  sims.list20pct[[1]][i,] <- ith.sim[1,] 
+  sims.list20pct[[2]][i,] <- ith.sim[2,] 
+  sims.list20pct[[3]][i,] <- ith.sim[3,] 
+  sims.list20pct[[4]][i,] <- ith.sim[4,] 
+  sims.list20pct[[5]][i,] <- ith.sim[5,] 
+  sims.list20pct[[6]][i,] <- ith.sim[6,] 
+}
+
+ncrit <- E.Ns*0.75 # change here to a desired number
+lcrit <- log(ncrit)
+nsteps <- 10
+probs.drop20pct <- matrix(0, nrow=6,ncol=nsteps)
+rownames(probs.drop20pct) <- row.names(S4mat)
+for(i in 1:6){
+  
+  simsmat <- sims.list20pct[[i]] # drop the initial log pop size
+  
+  for(j in 2:(nsteps+1)){
+    
+    jthsubmat <- simsmat[,1:j]
+    
+    probs.drop20pct[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
+  }
+}
+
+mat	<-	matrix(c(rep(c(1,1,1,1),3),rep(2,4)),nrow=4,ncol=4,byrow=T)
+layout(mat)
+par(oma=c(2,2,1,1), mar=c(4,4,4,0.5))
+plot(1:nsteps,probs.drop20pct[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="Years ahead of present", ylab="Pr. Falling Under Conservation Threshold", cex.lab=1.25)
+for(i in 2:6){
+  points(1:nsteps,probs.drop20pct[i,], type="b",  lwd=2, col=cool.palette[i])
+}
+#par(oma=c(1,1,1,1), mar=c(4,4,4,1))
+plot(0,0,type="n",axes=FALSE,xlab="",ylab="",main="")
+legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n",
+       horiz=TRUE)
+
+save.image("All-up2-20pctReduction.RData")
+```
+![Benchmark probabilities of falling under conservation threshold with a 20% reduction in the average growth rate](Pr-Fall-20pct.JPEG)<br>
+
+And with a 30\% reduction in the average growth rate we get the following 10 years forecast in the probability of falling under the conservation threshold of 75\% of the mean of the historical stationary distribution:
+
+```{r echo=TRUE, eval=FALSE}
+pct.red <- 0.70 # mu reduced by 10 %
+newmus <- muvec4kalman*pct.red
+
+sims.list30pct <- list()
+nyears.fwd <- 10
+nsims <- 100000
+
+for(i in 1:p){
+  sims.list30pct[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+}
+names(sims.list30pct) <- row.names(S4mat)
+
+for(i in 1:nsims){
+  
+  ith.sim <- MVX.sim(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                      Ip =  diag(p),
+                      muvec = newmus,
+                      sigmasq = sigsq4kalman, 
+                      B=B),
+                    nsteps=10,
+                    rnames = row.names(S4mat))
+  
+  sims.list30pct[[1]][i,] <- ith.sim[1,] 
+  sims.list30pct[[2]][i,] <- ith.sim[2,] 
+  sims.list30pct[[3]][i,] <- ith.sim[3,] 
+  sims.list30pct[[4]][i,] <- ith.sim[4,] 
+  sims.list30pct[[5]][i,] <- ith.sim[5,] 
+  sims.list30pct[[6]][i,] <- ith.sim[6,] 
+}
+
+ncrit <- E.Ns*0.75 # change here to a desired number
+lcrit <- log(ncrit)
+nsteps <- 10
+probs.drop30pct <- matrix(0, nrow=6,ncol=nsteps)
+rownames(probs.drop30pct) <- row.names(S4mat)
+for(i in 1:6){
+  
+  simsmat <- sims.list30pct[[i]] # drop the initial log pop size
+  
+  for(j in 2:(nsteps+1)){
+    
+    jthsubmat <- simsmat[,1:j]
+    
+    probs.drop30pct[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
+  }
+}
+
+mat	<-	matrix(c(rep(c(1,1,1,1),3),rep(2,4)),nrow=4,ncol=4,byrow=T)
+layout(mat)
+par(oma=c(2,2,1,1), mar=c(4,4,4,0.5))
+plot(1:nsteps,probs.drop30pct[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="Years ahead of present", ylab="Pr. Falling Under Conservation Threshold", cex.lab=1.25)
+for(i in 2:6){
+  points(1:nsteps,probs.drop30pct[i,], type="b",  lwd=2, col=cool.palette[i])
+}
+#par(oma=c(1,1,1,1), mar=c(4,4,4,1))
+plot(0,0,type="n",axes=FALSE,xlab="",ylab="",main="")
+legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n",
+       horiz=TRUE)
+
+save.image("All-up2-30pctReduction.RData")
+```
+![Benchmark probabilities of falling under conservation threshold with a 20% reduction in the average growth rate](Pr-Fall-30pct.JPEG)<br>
+
+
+Now the same calculations but with a 40\% reduction in the average growth rate we get the following 10 years forecast in the probability of falling under the conservation threshold of 75\% of the mean of the historical stationary distribution:
+
+```{r echo=TRUE, eval=FALSE}
+pct.red <- 0.6 # mu reduced by 10 %
+newmus <- muvec4kalman*pct.red
+
+sims.list40pct <- list()
+nyears.fwd <- 10
+nsims <- 100000
+
+for(i in 1:p){
+  sims.list40pct[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+}
+names(sims.list40pct) <- row.names(S4mat)
+
+for(i in 1:nsims){
+  
+  ith.sim <- MVX.sim(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                      Ip =  diag(p),
+                      muvec = newmus,
+                      sigmasq = sigsq4kalman, 
+                      B=B),
+                    nsteps=10,
+                    rnames = row.names(S4mat))
+  
+  sims.list40pct[[1]][i,] <- ith.sim[1,] 
+  sims.list40pct[[2]][i,] <- ith.sim[2,] 
+  sims.list40pct[[3]][i,] <- ith.sim[3,] 
+  sims.list40pct[[4]][i,] <- ith.sim[4,] 
+  sims.list40pct[[5]][i,] <- ith.sim[5,] 
+  sims.list40pct[[6]][i,] <- ith.sim[6,] 
+}
+
+ncrit <- E.Ns*0.75 # change here to a desired number
+lcrit <- log(ncrit)
+nsteps <- 10
+probs.drop40pct <- matrix(0, nrow=6,ncol=nsteps)
+rownames(probs.drop40pct) <- row.names(S4mat)
+for(i in 1:6){
+  
+  simsmat <- sims.list40pct[[i]] # drop the initial log pop size
+  
+  for(j in 2:(nsteps+1)){
+    
+    jthsubmat <- simsmat[,1:j]
+    
+    probs.drop40pct[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
+  }
+}
+
+mat	<-	matrix(c(rep(c(1,1,1,1),3),rep(2,4)),nrow=4,ncol=4,byrow=T)
+layout(mat)
+par(oma=c(2,2,1,1), mar=c(4,4,4,0.5))
+plot(1:nsteps,probs.drop40pct[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="Years ahead of present", ylab="Pr. Falling Under Conservation Threshold", cex.lab=1.25)
+for(i in 2:6){
+  points(1:nsteps,probs.drop40pct[i,], type="b",  lwd=2, col=cool.palette[i])
+}
+#par(oma=c(1,1,1,1), mar=c(4,4,4,1))
+plot(0,0,type="n",axes=FALSE,xlab="",ylab="",main="")
+legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n",
+       horiz=TRUE)
+
+save.image("All-up2-40pctReduction.RData")
+```
+
+
+Finally, the same calculations but with a 50\% reduction in the average growth rate we get the following 10 years forecast in the probability of falling under the conservation threshold of 75\% of the mean of the historical stationary distribution:
+
+```{r echo=TRUE, eval=FALSE}
+pct.red <- 0.5 # mu reduced by 10 %
+newmus <- muvec4kalman*pct.red
+
+sims.list50pct <- list()
+nyears.fwd <- 10
+nsims <- 100000
+
+for(i in 1:p){
+  sims.list50pct[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+}
+names(sims.list50pct) <- row.names(S4mat)
+
+for(i in 1:nsims){
+  
+  ith.sim <- MVX.sim(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                      Ip =  diag(p),
+                      muvec = newmus,
+                      sigmasq = sigsq4kalman, 
+                      B=B),
+                    nsteps=10,
+                    rnames = row.names(S4mat))
+  
+  sims.list50pct[[1]][i,] <- ith.sim[1,] 
+  sims.list50pct[[2]][i,] <- ith.sim[2,] 
+  sims.list50pct[[3]][i,] <- ith.sim[3,] 
+  sims.list50pct[[4]][i,] <- ith.sim[4,] 
+  sims.list50pct[[5]][i,] <- ith.sim[5,] 
+  sims.list50pct[[6]][i,] <- ith.sim[6,] 
+}
+
+ncrit <- E.Ns*0.75 # change here to a desired number
+lcrit <- log(ncrit)
+nsteps <- 10
+probs.drop50pct <- matrix(0, nrow=6,ncol=nsteps)
+rownames(probs.drop50pct) <- row.names(S4mat)
+for(i in 1:6){
+  
+  simsmat <- sims.list50pct[[i]] # drop the initial log pop size
+  
+  for(j in 2:(nsteps+1)){
+    
+    jthsubmat <- simsmat[,1:j]
+    
+    probs.drop50pct[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
+  }
+}
+
+mat	<-	matrix(c(rep(c(1,1,1,1),3),rep(2,4)),nrow=4,ncol=4,byrow=T)
+layout(mat)
+par(oma=c(2,2,1,1), mar=c(4,4,4,0.5))
+plot(1:nsteps,probs.drop50pct[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="Years ahead of present", ylab="Pr. Falling Under Conservation Threshold", cex.lab=1.25)
+for(i in 2:6){
+  points(1:nsteps,probs.drop50pct[i,], type="b",  lwd=2, col=cool.palette[i])
+}
+#par(oma=c(1,1,1,1), mar=c(4,4,4,1))
+plot(0,0,type="n",axes=FALSE,xlab="",ylab="",main="")
+legend(-0.8,1.65,legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n",
+       horiz=TRUE)
+
+save.image("All-up2-50pctReduction.RData")
+```
+
+Now we re-assort the plots and put them into a single six-panels figure:
+
+```{r echo=TRUE, eval=FALSE}
+
+
+par(mfrow=c(2,3),oma=c(5,5,4,1), mar=c(2,2,2,1))
+plot(1:nsteps,probs.drop10pct[1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[1])
+points(1:nsteps,probs.drop20pct[1,], type="b",  lwd=2, col=cool.palette[2])
+points(1:nsteps,probs.drop30pct[1,], type="b",  lwd=2, col=cool.palette[3])
+points(1:nsteps,probs.drop40pct[1,], type="b",  lwd=2, col=cool.palette[4])
+points(1:nsteps,probs.drop50pct[1,], type="b",  lwd=2, col=cool.palette[5])
+legend("topleft", legend=c("10% drop", "20% drop", "30% drop", "40% drop", "50% drop"), lty=rep(1,5),lwd=rep(2,5),
+       col=cool.palette[1:5], bty="n",cex=0.8)
+
+plot(1:nsteps,probs.drop10pct[2,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[2])
+points(1:nsteps,probs.drop20pct[2,], type="b",  lwd=2, col=cool.palette[2])
+points(1:nsteps,probs.drop30pct[2,], type="b",  lwd=2, col=cool.palette[3])
+points(1:nsteps,probs.drop40pct[2,], type="b",  lwd=2, col=cool.palette[4])
+points(1:nsteps,probs.drop50pct[2,], type="b",  lwd=2, col=cool.palette[5])
+legend("bottomleft", legend=c("10% drop", "20% drop", "30% drop", "40% drop", "50% drop"), lty=rep(1,5),lwd=rep(2,5),
+       col=cool.palette[1:5], bty="n",cex=0.8)
 
 
 
+plot(1:nsteps,probs.drop10pct[3,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[3])
+points(1:nsteps,probs.drop20pct[3,], type="b",  lwd=2, col=cool.palette[2])
+points(1:nsteps,probs.drop30pct[3,], type="b",  lwd=2, col=cool.palette[3])
+points(1:nsteps,probs.drop40pct[3,], type="b",  lwd=2, col=cool.palette[4])
+points(1:nsteps,probs.drop50pct[3,], type="b",  lwd=2, col=cool.palette[5])
+legend("bottomleft", legend=c("10% drop", "20% drop", "30% drop", "40% drop", "50% drop"), lty=rep(1,5),lwd=rep(2,5),
+       col=cool.palette[1:5], bty="n",cex=0.8)
 
-```{r eval=FALSE, echo=TRUE}
+
+plot(1:nsteps,probs.drop10pct[4,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[4])
+points(1:nsteps,probs.drop20pct[4,], type="b",  lwd=2, col=cool.palette[2])
+points(1:nsteps,probs.drop30pct[4,], type="b",  lwd=2, col=cool.palette[3])
+points(1:nsteps,probs.drop40pct[4,], type="b",  lwd=2, col=cool.palette[4])
+points(1:nsteps,probs.drop50pct[4,], type="b",  lwd=2, col=cool.palette[5])
+legend("bottomright", legend=c("10% drop", "20% drop", "30% drop", "40% drop", "50% drop"), lty=rep(1,5),lwd=rep(2,5),
+       col=cool.palette[1:5], bty="n",cex=0.8)
+
+
+plot(1:nsteps,probs.drop10pct[5,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[5])
+points(1:nsteps,probs.drop20pct[5,], type="b",  lwd=2, col=cool.palette[2])
+points(1:nsteps,probs.drop30pct[5,], type="b",  lwd=2, col=cool.palette[3])
+points(1:nsteps,probs.drop40pct[5,], type="b",  lwd=2, col=cool.palette[4])
+points(1:nsteps,probs.drop50pct[5,], type="b",  lwd=2, col=cool.palette[5])
+legend("bottomleft", legend=c("10% drop", "20% drop", "30% drop", "40% drop", "50% drop"), lty=rep(1,5),lwd=rep(2,5),
+       col=cool.palette[1:5], bty="n",cex=0.8)
+
+
+
+plot(1:nsteps,probs.drop10pct[6,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[6])
+points(1:nsteps,probs.drop20pct[6,], type="b",  lwd=2, col=cool.palette[2])
+points(1:nsteps,probs.drop30pct[6,], type="b",  lwd=2, col=cool.palette[3])
+points(1:nsteps,probs.drop40pct[6,], type="b",  lwd=2, col=cool.palette[4])
+points(1:nsteps,probs.drop50pct[6,], type="b",  lwd=2, col=cool.palette[5])
+legend("bottomright",  legend=c("10% drop", "20% drop", "30% drop", "40% drop", "50% drop"), lty=rep(1,5),lwd=rep(2,5),
+       col=cool.palette[1:5], bty="n",cex=0.8)
+
+
+mtext(text="Pr. of Falling Under Conservation Threshold", side=2, outer=TRUE, cex=1.25,line=1)
+mtext(text="Years ahead of present", side=1, outer=TRUE, cex=1.15,line=1)
+
+```
+
+![Probabilities of falling under conservation threshold with a 10-50% drop in the average growth rate](Pr-Fall-All.JPEG)<br>
+
+## Proportion of time the population process is predicted to be below past population means:
+
+Another way to look at the effects of the drop in the growth rate is to put to good use the concept of the stationary distribution.  As mentioned above, the area under that curve within a given interval of population size gives the long term fraction of time the stochastic population process will spend within that interval.  Thus, the cdf of the stationary distribution can be used to directly compute the probability that the population size will be found below a given threshold, after accounting for environmental variability and the subsequent year-to-year stochastic changes in the growth rate of the population.  Therefore, in what follows we recompute the mean and variance of the stationary distribution for an array of percent drops in the stationary mean, just as above but then we compute directly the long run percent of time spent below the threshold, and proceed to plot these probabilities for all populations and for the entire array of percent drop in the growth rate. 
+
+```{r echo=TRUE, eval=FALSE}
+
+
+pct.red <- c(0.9,0.8,0.7,0.6,0.5)
+Ip <- diag(p)
+muvec <- newmus
+Sigma <- (1/sigsq4kalman)*Ip
+
+Ipsq <- diag(p*p)
+vec.Vinf <- solve(Ipsq - kronecker(B,B))%*%as.vector(Sigma)
+Vinf <- matrix(vec.Vinf, nrow=p,ncol=p)
+Vars.inf <- diag(Vinf)
+names(Vars.inf) <- row.names(S4mat)
+
+perc.redmat <- matrix(0, nrow=p,ncol=5)
+rownames(perc.redmat) <- row.names(S4mat)
+colnames(perc.redmat) <- pct.red
+for(i in 1:5){
+  perc.redmat[,i] <- plnorm(q=E.Ns*0.75, meanlog=muvec4kalman*pct.red[i], sdlog=sqrt(Vars.inf))
+}
+
+print(perc.redmat)
+
+
+pct.red2 <- (1-pct.red)*100
+par(oma=c(2,2,1,1), mar=c(4,4,4,1))
+plot(25,0.8,type="n",xlab="% reduction in growth rate",main="Long term proportion of time spent <75% of past pop. average", ylim=c(0.65,1), xlim=c(10,55), bty="l", ylab="Proportion (stationary distribution cdf)")
+for(i in 1:p){
+  points(pct.red2,perc.redmat[i,], lty=1, lwd=2,type="b", col=cool.palette[i], xlab="", ylab="", main="")
+}
+
+legend("bottomright",legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n")
+
+```
+![Long term proportion of time spent under 75% of past population averages for each deme](TimeSpentUnder75pct.JPEG)<br>
+
+And we can do the same but computing the proportion of time spent under 50% of past population averages
+```{r echo=TRUE, eval=FALSE}
+perc.redmat50 <- matrix(0, nrow=p,ncol=5)
+rownames(perc.redmat50) <- row.names(S4mat)
+colnames(perc.redmat50) <- pct.red
+for(i in 1:5){
+  perc.redmat50[,i] <- plnorm(q=E.Ns*0.5, meanlog=muvec4kalman*pct.red[i], sdlog=sqrt(Vars.inf))
+}
+
+print(perc.redmat50)
+
+
+pct.red2 <- (1-pct.red)*100
+par(oma=c(2,2,1,1), mar=c(4,4,4,1))
+plot(25,0.6,type="n",xlab="% reduction in growth rate",main="Long term proportion of time spent <50% of past pop. average", ylim=c(0.5,1), xlim=c(10,55), bty="l", ylab="Proportion (stationary distribution cdf)")
+for(i in 1:p){
+  points(pct.red2,perc.redmat50[i,], lty=1, lwd=2,type="b", col=cool.palette[i], xlab="", ylab="", main="")
+}
+
+legend("bottomright",legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n")
+
+```
+![Long term proportion of time spent under 50% of past population averages for each deme](TimeSpentUnder50pct.JPEG)<br> 
+
+Taking the same approache we can ask what are the chances of the extreme event of the population size being under say one fourth of the past population mean for every deme:
+
+```{r echo=TRUE, eval=FALSE}
+perc.redmat25 <- matrix(0, nrow=p,ncol=5)
+rownames(perc.redmat25) <- row.names(S4mat)
+colnames(perc.redmat25) <- pct.red
+for(i in 1:5){
+  perc.redmat25[,i] <- plnorm(q=E.Ns*0.25, meanlog=muvec4kalman*pct.red[i], sdlog=sqrt(Vars.inf))
+}
+
+print(perc.redmat25)
+
+
+par(oma=c(2,2,1,1), mar=c(4,4,4,1))
+plot(25,0.20,type="n",xlab="% reduction in growth rate",main="Long term proportion of time spent <25% of past pop. average", ylim=c(0.25,1), xlim=c(10,55), bty="l", ylab="Proportion (stationary distribution cdf)")
+for(i in 1:p){
+  points(pct.red2,perc.redmat25[i,], lty=1, lwd=2,type="b", col=cool.palette[i], xlab="", ylab="", main="")
+}
+
+legend("bottomright",legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n")
+
+```
+![Long term proportion of time spent under 25% of past population averages for each deme](TimeSpendUnder25.JPEG)<br>
+
+
+```{r eval=FALSE, echo=FALSE}
+save.image("SNKI-PVA1.0.RData")
+```
+
+Alright, these analyses wrap up our basic PVA analysis.
+
+
+```{r eval=FALSE, echo=FALSE}
 MGSS_DC4.0 <- function(){
   ##### Priors (no cloning)
   lmuvec    ~ dmnorm(mupmean, muprec)

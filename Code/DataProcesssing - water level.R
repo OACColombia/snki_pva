@@ -1,18 +1,43 @@
 # Data is water level per wetland in the six regions. 
-# There are three documents:
-  # 1) wetlands and demes.csv
-  # 2) snailkite counts by wetland 1997_2025.csv
-  # 3) daily stage in each wetland.csv
+# There are four documents:
+  # 1) survey_dates_1997_2025.csv
+  # 2) daily stage in each wetland.csv
+  # 3) wetlands and demes.csv
+  # 4) snailkite counts by wetland 1997_2025.csv
 
-# And we are aiming to generate three matrices to use in the second objectiv
+# And we are aiming to generate three matrices to use in the second objective
 
   # 1) the counts (three surveys as replicates)
-  # 2) the mean monthly water level (should be corrected with dates of surveys?)
-  # 3) the %CV of the monthly water level (also to be updated)
+  # 2) the mean weekly water level (including the week before starting each survey)
+  # 3) the %CV of the weekly water level (SD/mean * 100). 
+      # This allow to compare across surveys with different length
 
 library(tidyverse)
 
 # Reading the data
+
+# surveys dates to link water level data ####
+survey_date <- read.csv("Code/survey_dates_1997_2025.csv") |>
+  mutate(start = ymd(start),
+         end = ymd(end),
+         start.w = floor_date(start-6,"week"),
+         end.w = floor_date(end, "week"))
+
+# water level data per wetland - daily value in long format ####
+daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |>
+  mutate(date = dmy(Daily.Date)) |>
+  pivot_longer(cols = !c("date", "Daily.Date"),
+               names_to = "wetland",
+               values_to = "daily_water")
+
+# Filter water level at the weekly scale for the dates of surveys
+www_filt <- pmap(survey_date, function(start.w, end.w, ...) {
+  daily_wetland_water |>
+    filter(date >= start.w & date <= end.w)
+})
+
+www_filt_df <- bind_rows(www_filt, .id = "survey_id")
+www_filt_df$X <- as.numeric(www_filt_df$survey_id)
 
 # relationship of wetlands and regions ####
 wetland_region <- read.csv("Code/wetlands and demes.csv") |>
@@ -28,69 +53,61 @@ table(wetland_region$region)
 snki_N_wetland <- read.csv("Code/snailkite counts by wetland 1997_2025.csv")
 names(snki_N_wetland)
 
-# long format
+# long format with water level per survey
 snki_N_wetland_region <- snki_N_wetland |>
   # move wetland columns to a single, having the count reported
   pivot_longer(cols = !c(X, year, survey_num), 
                names_to = "wetland", 
-               values_to = "count") |>
-  # add a potential date per survey (at the level of month)
-  mutate(month = ifelse(survey_num == 1,"March",
-                 ifelse(survey_num == 2,"April",
-                 ifelse(survey_num == 3,"May",
-                 ifelse(survey_num == 4,"June",
-                 ifelse(survey_num == 5,"July",
-                 ifelse(survey_num == 6,"August",
-                               "none")))))),
-         date = ymd(paste0(year,"-",month,"01"))) |>
-  # assign region from the wetland name.
+               values_to = "count") |> 
+  # merge with the daily water wetland level
+  left_join(www_filt_df) |>
+  # extract survey mean and CV
+  group_by(wetland, year, survey_id, survey_num) |>
+  summarise(
+    count = mean(count, na.rm = TRUE),
+    mu_water = mean(daily_water, na.rm = TRUE),
+    sd_water = sd(daily_water, na.rm = TRUE),
+    CV_water = (sd_water/mu_water) * 100
+            ) |>
+  # assign region from the wetland name
   left_join(wetland_region)
 
-# water level data per wetland - daily to monthly to match survey ####
-daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |>
-  mutate(date = dmy(Daily.Date),
-         date = floor_date(date,"month"))
-summary(daily_wetland_water)
-
-# long format - summarized by month
-monthly_wetland_water <- daily_wetland_water |>
-  pivot_longer(cols = !c("date", "Daily.Date"),
-               names_to = "wetland", 
-               values_to = "daily_water") |>
-  group_by(date, wetland) |>
-  summarise(mu_month_water = mean(daily_water, na.rm = T),
-            sd_month_water = sd(daily_water, na.rm = T),
-            CV_month_water = (sd_month_water/mu_month_water)*100)
-
-# Unify counts with Month mean water and variation ####
+# Unify counts with survey mean water and variation ####
 # 30 wetlands have water level information
 # 46 wetlands have counts in 6 surveys
 
 # which wetland in each region has more information?
 snki_N_wetland_region |>
-  # joint the monthly level of water per wetland
-  left_join(monthly_wetland_water) |> 
+  mutate(region = ifelse(wetland == "STA.Lakeside.Ranch","OTHER",
+                         region)) |>
   # to summarize, `group_by()`
-  group_by(region,wetland) |>
+  group_by(region, wetland) |>
   # remove NA surveys
   drop_na(count) |>
   # how many surveys per wetland?
   count() |> 
   # sort the information (for Table 1 in the report)
   arrange(region, -n) |> 
+  filter(region != "OTHER") |>
   as.data.frame()
 
+# select the wetlands with ≥ 75% of the maximum counts per region
+
 snki_N_water <- snki_N_wetland_region |>
-  left_join(monthly_wetland_water) |>
   ungroup() |>
-  # here we can select the wetlands with more data, or representative of the demes
+  # here we can select the wetlands with more data to represent each region
   filter(wetland %in% c(
-    "East.Lake.Tohopekaliga", # KRV
-    "SJM", # SJM
-    "WCA.3A", # EVER
-    "Lake.Okeechobee", # OKEE
     "Grassy.Waters.Preserve", # EAST
-    "Paynes.Prairie" # PP
+    "WCA.3A", # EVER
+    "WCA.2B", # EVER
+    "Loxahatchee.NWR", # EVER
+    "WCA.3B", # EVER
+    "East.Lake.Tohopekaliga", # KRV
+    "Lake.Kissimmee", # KRV
+    "Lake.Istokpoga", # KRV
+    "Lake.Okeechobee", # OKEE
+    "Paynes.Prairie", # PP
+    "SJM" # SJM
     )) |>
   # unify in a single name
   mutate(region.wetland = paste(region, wetland, sep = "_")) |>
@@ -107,22 +124,29 @@ snki_counts <- snki_N_water |>
   as.data.frame()
 
 snki_water <- snki_N_water |> 
-  dplyr::select(year, survey_num, region.wetland, mu_month_water) |>
-  pivot_wider(names_from = region.wetland, values_from = mu_month_water) |>
+  dplyr::select(year, survey_num, region.wetland, mu_water) |>
+  pivot_wider(names_from = region.wetland, values_from = mu_water) |>
   as.data.frame()
 
 snki_water_CV <- snki_N_water |> 
-  dplyr::select(year, survey_num, region.wetland, CV_month_water) |>
-  pivot_wider(names_from = region.wetland, values_from = CV_month_water) |>
+  dplyr::select(year, survey_num, region.wetland, CV_water) |>
+  pivot_wider(names_from = region.wetland, values_from = CV_water) |>
   as.data.frame()
 
 names.snkicounts <- names(snki_counts)
-wet.names <- c("EAST_Grassy.Waters.Preserve",
-               "EVER_WCA.3A",
-               "KRV_East.Lake.Tohopekaliga",
-               "OKEE_Lake.Okeechobee",
-               "PP_Paynes.Prairie",
-               "SJM_SJM")
+wet.names <- c(
+  "EAST_Grassy.Waters.Preserve", # EAST
+  "EVER_WCA.3A", # EVER
+  "EVER_WCA.2B", # EVER
+  "EVER_Loxahatchee.NWR", # EVER
+  "EVER_WCA.3B", # EVER
+  "KRV_East.Lake.Tohopekaliga", # KRV
+  "KRV_Lake.Kissimmee", # KRV
+  "KRV_Lake.Istokpoga", # KRV
+  "OKEE_Lake.Okeechobee", # OKEE
+  "PP_Paynes.Prairie", # PP
+  "SJM_SJM" # SJM
+  )
 cols.with.counts <- match(wet.names, names.snkicounts)
 years <- unique(snki_counts$year)
 nyears <- length(years)
@@ -149,5 +173,3 @@ for(i in 1:3){
   Water.list[[i]] <- ith.watmat
   WaterCV.list[[i]] <- ith.watCVmat
 }
-
-# table of region, wetland, latitude, longitude, and relationship of water level

@@ -24,7 +24,7 @@ survey_date <- read.csv("Code/survey_dates_1997_2025.csv") |>
          end.w = floor_date(end, "week"))
 
 # water level data per wetland - daily value in long format ####
-daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |>
+daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |> 
   mutate(date = dmy(Daily.Date)) |>
   pivot_longer(cols = !c("date", "Daily.Date"),
                names_to = "wetland",

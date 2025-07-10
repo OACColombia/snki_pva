@@ -1,0 +1,79 @@
+---
+title: "Allee"
+author: "José Miguel Ponciano, Orlando Acevedo-Charry, Caroline Poli, Meghan Beatty, Lara Elmquist, & Miguel A. Acevedo"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  bookdown::html_document2:
+    toc: yes
+    toc_float: true
+    number_sections: yes
+    fig_caption: true
+    df_print: paged
+subtitle: Stochastic Gompertz State-Space model with Poisson observation error
+editor_options:
+  chunk_output_type: console
+---
+
+# Introduction
+Here we attempt to answer the question of whether a no-return lower population size threshold
+can be estimated with the snail kite time series dataset.  For every deme, the idea is to fit a discrete-time population dynamics model with an Allee effect.  Dennis (2002) showed the following:  the deterministic Allee effect population dynamics model with the logistic equation density-dependence contains two equilibria.  The first one is an upper equilibrium population size $\tilde{n}_1$, and corresponds to the traditional carrying capacity $K$ of a simple logistic model.  That equilibrium is stable, meaning all trajectories starting near it get closer and closer to it over time.  A second equilibrium population size $\tilde{n}_2$ that lies in the interval $(0,K)$ exists.  That equilibrium is unstable, meaning all trajectories starting near it (either from above or below) diverge from it.  The result is that if a population trajectory starts near yet above $\tilde{n}_{2}$ it will grow till reaching $\tilde{n}_1$.  However if a population trajectory starts ever so slightly below $\tilde{n}_1$, that population will not grow and will quickly decay and go extinct. Thus, in a very real sense, $\tilde{n}_1$ represents a target population size threshold that must be met for a population to persist. This description is the essence of the deterministic dynamics of a population model with an Allee effect.  The biological causes of this dynamics can be many, but the effect still is the same.  Scarcity of mates, joint parental control of predators in nesting colonies, optimality of hunting group sizes, heterogeneity in the ability of finding mates and many other processes (see Dennis 1989) all lead to the definition of that lower unstable equilibrium size $\tilde{n}_1$.
+
+When demographic stochasticity (random births and deaths) is included, determinism no longer governs the fate of the population. Dennis (2002) showed that extinction probabilities for a stochastic model with an Allee effect and a carrying capacity can be described as a decreasing function of the current population size with an inflection point.  Accordingly, at high initial population sizes the extinction probability is close to zero.  This probability then increases seemingly exponentially up until the value of the deterministic unstable equilibrium $\tilde{n}_1$. At that population size the extinction probability curve presents an inflection point and thus dramatically increases as the initial population size becomes smaller and smaller.  Hence, $\tilde{n}_1$ marks the population size below which the extinction probability greatly increases and above which it greatly diminishes.  If one were to define an extinction threshold based only on population dynamics then estimating $\tilde{n}_1$ seems to be a suitable inference target from time series data. The advantage of targeting an estimate of $\tilde{n}_1$ is that fitting a population dynamics model averages out the effect of a potentially large number of covariates shaping the growth rate and translate these into estimates of model parameters (specifically, the maximum growth rate, the density-dependent parameter, the Allee effect parameter and the amount of environmental variability). The information to estimate these parameters/effects comes from the available length of the time series of population abundances.  In what follows, we attempt to estimate and define this lower population extinction threshold by fitting a stochastic Allee effects model to the Snail Kite time series data.
+
+The model with demographic stochasticity and an Allee effect follows the derivation in [Ferguson and Ponciano (2014)](https://onlinelibrary.wiley.com/doi/full/10.1111/ele.12227). Let $X_{i},\,i=1,n_{t}$ be the number of offspring born to individual $i$ given that the current population size at time $t$ is $n_t$.  Then the total number of potential recruits for that year is $Y=\sum_{i=1}^{n_{t}}X_{i}$.  Letting the offspring distribution $X_{i}$ be iid Poisson distributed with mean $\lambda$ directly gives $Y\sim {\rm Poisson}(\lambda n_{t})$.  Typically, the construction of a population dynamics model from this point specifies $\lambda$ as $\lambda = \exp\{a\},$ where $a$ is the maximum growth rate.  Under a density independent scenario, $a=$average number of births $-$ average number of deaths.  In order to include an Allee effect, we subtract a density-dependent probability of not producing offspring to $a$ (that is, in the scale of the growth rate $R_{t} = {\rm ln}\,n_{t+1}/{\rm ln}\,n_{t}$).  [Dennis (1989)](https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1939-7445.1989.tb00119.x) showed that the rectangular hyperbola (RH) form $\frac{n}{n+\theta}$ where $\theta>0$ can be interpreted as the probability of mating that accounts for mating shortage.  Then, $1- \frac{n}{n+\theta} = \frac{\theta}{n+\theta}$ is the probability of not mating.  Thus, to construct our Allee effects model with demographic stochasticity we set 
+$$\lambda = {\rm e}^{a-\frac{\psi\theta}{\theta+n}},$$ 
+\noindent where $\psi>0$ is a proportionality constant.  Next, we let $p(n_{t}) = {\rm e}^{-bn_{t}}$ be the density-dependent survival probability of the potential recruits.  Assuming an independent and identical survival process, then *conditional* on the random number of offspring produced $Y$ and a fixed population size $n_{t}$, the total number of recruits surviving for next generation is 
+
+$$N_{t+1}|(N_{t}=n_{t},Y) \sim {\rm Binomial}(Y,p(n_{t})).$$
+\noindent Unconditionally (*i.e.* after averaging over all the possible values of $Y$), it follows that
+$$N_{t+1}|(N_{t}=n_{t}) \sim {\rm Poisson}\left({\rm e}^{a-bn_{t} -\frac{\psi\theta}{\theta+n}}\right).$$
+This Poisson distribution then defines the transition probabilities from any fixed population size $n_t$ to a new population size $N_{t+1}$. Note that here, the use of capital letters is done according to standard practice in statistics to represent all the possible outcomes of a random variable whereas the lower case letters represent realized, fixed values of a random variable.  Parameters are denoted as single roman or greek letters.  The above derivation fully defines a Markovian population dynamics process with negative density dependence, an Allee effect and demographic stochasticity.
+
+An alternative model results from adding the effects of environmental stochasticity. To specify a model with both, demographic and environmental stochasticities, we start by redefining $\Lambda_{t} = \exp\{a_{t}\}$, and assuming this quantity varies randomly over time thus embodying environmental stochasticity [Lewontin and Cohen 1969](https://www.pnas.org/doi/abs/10.1073/pnas.62.4.1056).  Here, we set $\Lambda_{t}\sim {\rm Gamma}(\alpha,k)$. Then, conditional on the particular year's realization of the environmental process $\Lambda_t$, the transition probability distribution would be  
+
+$$N_{t+1}|(N_{t}=n_{t},\Lambda_{t}) \sim {\rm Poisson}\left(\Lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}\right),$$
+\noindent and averaging out the environmental process over time with this integral 
+$$Pr(N_{t+1}=n_{t+1}|N_{t}=n_{t}) = \int_{0}^{\infty}\frac{{\rm e}^{-\lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}}\left(\lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}\right)^{n_{t+1}}}{n_{t+1}!}\frac{\alpha^{k}}{\Gamma(k)}\lambda_{t}^{k-1}{\rm e}^{-\alpha\lambda_{t}} d\lambda_{t}$$
+\noindent immediately gives the following Negative Binomial transition probability distribution that incorporates the effects of both, demographic and environmental stochasticities:
+$$Pr(N_{t+1}=n_{t+1}|N_{t}=n_{t}) =\frac{\Gamma(n_{t+1}+k)}{\Gamma(k)n_{t+1}!}{\rm P}^{k}{\rm Q}^{n_{t+1}},\,\text{where}$$
+${\rm P} + {\rm Q} = 1,\,{\rm P} = \frac{\alpha}{g(n_{t})+\alpha}$ and $g(n_{t}) = {\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n_{t}}}$.
+
+Before delving into the parameter estimation process, note that the expected value for both stochastic models of population dynamics is exactly equal to the deterministic Ricker model with added Allee effects:
+
+$$
+n_{t+1} = f(n_{t}) =\lambda n_{t} g(n_{t}) = n_{t}{\rm e}^{a-bn_{t} -\frac{\psi\theta}{\theta+n_{t}}}.
+$$
+An equilibrium for this deterministic model is by definition given by the population size $n^{*}$ that satisfies 
+$$ n^{*} = f(n^{*}) = n^{*}{\rm e}^{a-bn^{*} -\frac{\psi\theta}{\theta+n^{*}}},$$
+or equivalently, by the value $n^*$ that makes the growth rate $R_t$ equal to zero, *i.e.*:
+$$a-bn^{*} -\frac{\psi\theta}{\theta+n^{*}} = 0.$$
+Solving the above equation for the equilibrium immediately gives two solutions:
+$$
+n^{*}_{1,2} = \frac{(a-b\theta) \pm \sqrt{a^{2} + 2ab\theta + b^{2}\theta^{2} -4b\psi\theta}}{2b}.
+$$
+Of these two solutions, the one for which the specific parameter values gives $\left|f'(n^{*}) \right|<1$ is the stable equilibrium and the one for which $\left|f'(n^{*}) \right|\geq 1$ is the unstable Allee effect equilibrium [Kot 2001](https://www.cambridge.org/core/books/elements-of-mathematical-ecology/6F91A5D3AB89EECE130825ED5529B8DE).  For this model an explicit expression of the derivative of the model map can be written: 
+$$f'(n) = {\rm e}^{a-bn-\frac{\psi\theta}{(\theta +n)}}\left(1 - nb + \frac{n\psi\theta}{(\theta +n)^{2}} \right).$$
+\noindent Evaluating this derivative on the equilibria gives 
+$$f'(n^{*}) = \left(1 - n^{*}b + \frac{n^{*}\psi\theta}{(\theta +n^{*})^{2}} \right).$$
+Alright, once the deterministic model has been examined, the unstable equilibrium found and given that we have the transition probability distributions for two versions of a stochastic population dynamics model, we are ready to estimate the model parameters. Here as before, the logical thing to do is expand this single population model to the multiple demes scenario and add an extra migration term to the model.  Before doing so, I present the estimation of the Allee effect model for the aggregated population counts using JAGS.
+
+
+
+
+
+First, let's load the packages in `R` needed to run this code
+
+```{r, message=FALSE}
+# R functions and datasets to support "Modern Applied Statistics with S", 
+  #a book from W.N. Venables and B.D. Ripley
+library(MASS); 
+# R functions for Data Cloning (maximum likelihood estimation using Bayesian MCMC)
+library(dclone); 
+# Create plots for MCMC output
+library(mcmcplots)
+# Data manipulation and elegant figures
+library(tidyverse)
+# Palettes inspired by works at the Metropolitan Museum of Art in New York
+library(MetBrewer)
+```
+

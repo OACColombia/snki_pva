@@ -8,7 +8,7 @@
 # And we are aiming to generate three matrices to use in the second objective
 
   # 1) the counts (three surveys as replicates)
-  # 2) the mean weekly water level (including the week before starting each survey)
+  # 2) the survey mean water level (including the week before starting each survey)
   # 3) the %CV of the weekly water level (SD/mean * 100). 
       # This allow to compare across surveys with different length
 
@@ -21,7 +21,7 @@ survey_date <- read.csv("Code/survey_dates_1997_2025.csv") |>
   mutate(start = ymd(start),
          end = ymd(end),
          start.w = floor_date(start-6,"week"),
-         end.w = floor_date(end, "week"))
+         end.w = floor_date(start, "week"))
 
 # water level data per wetland - daily value in long format ####
 daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |> 

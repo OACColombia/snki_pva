@@ -1,0 +1,968 @@
+---
+title: "Snail Kite Population Viability Analysis with State-Space models"
+author: "José Miguel Ponciano, Orlando Acevedo-Charry, Caroline Poli, Meghan Beatty, Lara Elmquist, & Miguel A. Acevedo"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  bookdown::html_document2:
+    toc: yes
+    toc_float: true
+    number_sections: yes
+    fig_caption: true
+    df_print: paged
+subtitle: Does adding detectability to the observation error model helps?
+editor_options:
+  chunk_output_type: console
+---
+
+
+## Objective
+The purpose of this document is to explore the statistical properties of a model where we include an under-reporting probability in the sampling error model.
+
+```{r, message=FALSE}
+# R functions and datasets to support "Modern Applied Statistics with S", 
+  #a book from W.N. Venables and B.D. Ripley
+library(MASS); 
+# R functions for Data Cloning (maximum likelihood estimation using Bayesian MCMC)
+library(dclone); 
+# Create plots for MCMC output
+library(mcmcplots)
+# Data manipulation and elegant figures
+library(tidyverse)
+# Palettes inspired by works at the Metropolitan Museum of Art in New York
+library(MetBrewer)
+```
+
+First we read the data
+```{r Reading the data}
+rawdat <- read.csv("Code/snailkite counts 1997_2025.csv")
+head(rawdat, 12) # first 12 rows
+tail(rawdat, 12) # last 12 rows
+```
+
+We can extract information from this dataset to be organized according to the modeling requirements:
+
+```{r data values}
+names.rawdat <- names(rawdat)
+deme.names <- c("EAST","EVER","KRV","OKEE","PP","SJM","OTHER" )
+cols.with.counts <- match(deme.names, names.rawdat)
+
+years <- unique(rawdat$year)
+nyears <- length(years)
+year.col <- which(names.rawdat=="year",arr.in=TRUE)
+```
+
+We are using a simple time scale from 0 to 28 `tt`, but we can use the 'years' vector above to do the plots. 
+```{r time vector}
+tt <- years - years[1]
+```
+
+We can also organize the number of surveys
+```{r list of surveys}
+# List the survey numbers:
+surv.num <- unique(rawdat$survey_num)
+```
+
+We can save the reorganized data in a list of three matrices, one per survey (Surveys 4, 5, and 6 are `S4mat`, `S5mat`, and `S6mat`, respectively). We can also extract the NA presence in a list of three matrices (`NAS.list <- list(NA4mat = S4mat, NA5mat=S5mat, NA6mat=S6mat)`).
+
+```{r empty lists of matrices to reorganize data}
+S4mat <- S5mat <- S6mat <- matrix(0, nrow=7, ncol=nyears)
+
+Counts.list <- list(S4mat = S4mat, S5mat=S5mat, S6mat=S6mat)
+NAS.list  <- list(NA4mat = S4mat, NA5mat=S5mat, NA6mat=S6mat)
+short.inds.list <- list()
+```
+
+And finally, we can iterativelly for each of the three surveys (`i in 1:3`) fill the matrices in the empty lists. First we will use the survey number to locate our survey of interest (`surv.num[(i+3)]`). Then, we ask the row number of the surveys within the `rawdat` dataset. We extract the rows for each survey in each region or subpopulation, and transpose this subset `t()`. The columns of this transposed subset correspond to the time series vector `tt` (because is only one of the surveys), so from 0 to 28 (29 years). This matrix is saved in `Counts.lists`. Then we identify the years with NA for each supbopulation, and save them in `NAS.list`. Finally, for each population (6 + "OTHER"), we save the counts with NAs.
+```{r}
+for(i in 1:3){
+  
+  SN <- surv.num[(i+3)]
+  
+  ith.rows   <- which(rawdat$survey_num==SN, arr.ind=TRUE)
+  
+  #ith.datmat <- rawdat[ith.rows, c(year.col,cols.with.counts)]
+  ith.datmat <- t(rawdat[ith.rows, cols.with.counts])
+  colnames(ith.datmat) <- tt
+  
+  Counts.list[[i]] <- ith.datmat
+  
+  ith.isnamat <- 1-is.na(ith.datmat)
+  NAS.list[[i]] <- ith.isnamat
+  
+  ith.shortind.list <- list()
+  for(j in 1:7){
+    
+    ith.shortind.list[[j]] <- which(ith.isnamat[j,]==1,arr.ind=TRUE)
+    
+  }
+  names(ith.shortind.list) <- deme.names
+  short.inds.list[[i]] <- ith.shortind.list 
+    
+}
+names(short.inds.list) <- c("short.inds4","short.inds5", "short.inds6")
+```
+
+## Functions for initial guesses of parameters and random MVN generator
+
+We will need initial or "naive" guesses of the parameters to fit the state-space model. This could be roughly computing by providing the vector of (log)abundance observations `Yobs` ($\mathbf{N}$) and the vector of observation times `Tvec` with the function `guess.calc()`:
+
+```{r guess.calc}
+guess.calc <- function(Yobs,Tvec){
+  
+  #  For calculations, time starts at zero.
+  T.t <-Tvec-Tvec[1];
+  #  Number of time series transitions, q.
+  q <- length(Yobs)-1;
+  #  q+1 gives the length of the time series.
+  qp1 <- q+1;
+  #  Time intervals
+  S.t <- T.t[2:qp1]-T.t[1:q]; 
+  #  Mean of the observations
+  Ybar <- mean(Yobs);        
+  # Variance of the observations
+  Yvar <- sum((Yobs-Ybar)*(Yobs-Ybar))/q;
+  # Initial mu estimate (at stationary distribution)
+  mu1 <- Ybar;
+  
+  # Kludge an initial value for theta based on mean of Y(t+s) given Y(t).
+  th1 <- -mean(log(abs((Yobs[2:qp1]-mu1)/(Yobs[1:q]-mu1)))/S.t);            
+  # Moment estimate using stationary
+  bsq1 <- 2*th1*Yvar/(1+2*th1);         
+  # Observation error variance, assumed as first guess as betasq=tausq.
+  tsq1 <- bsq1;                         
+  
+  # What to do if initial guesses is three 0's (or NAs)? Assume arbitrary values
+  three0s <- sum(c(th1,bsq1,tsq1))
+  if(three0s==0|is.na(three0s)){
+    th1 <- 0.5;
+    bsq1 <- 0.09; 
+    tsq1 <- 0.23;
+    }
+  
+  out1 <- c(th1,bsq1,tsq1);
+  
+  # What to do if initial guesses are too little? Assume arbitrary values
+  if(sum(out1<1e-7)>=1){
+    out1 <- c(0.5,0.09,0.23)
+  }
+  
+  out <- c(mu1,out1);
+  return(abs(out))
+}
+```
+
+To take into account possible NAs in the counts, we can wrap these initial guess estimator function `guess.calc()` into another function `guess.calc2.0()`:
+
+```{r guess.calc2.0}
+guess.calc2.0<- function(TimeAndNs){
+  
+  newmat <- TimeAndNs 
+  isnas <- sum(is.na(TimeAndNs))
+  
+  if(isnas >= 1){
+    
+    isnaind <- which(is.na(TimeAndNs[,2]), arr.ind=TRUE)
+    newmat <- TimeAndNs[-isnaind,]
+    newmat[,1] <- newmat[,1] - newmat[1,1]
+    
+  }
+  
+  init.guess <- guess.calc(Yobs = log(newmat[,2]), Tvec=newmat[,1])
+  
+  mu1  <- init.guess[1]
+  th1  <- init.guess[2]
+  bsq1 <- init.guess[3]
+  sigsq1<- ((1-exp(-2*th1))*bsq1)/(2*th1)
+  
+  out <- c(mu=mu1, theta=th1, sigmasq = sigsq1)
+  return(out)
+}
+```
+
+We also need a Multivariate Normal random generator function `randmvn()`, which needs:
+
+  1.  The number of random samples of a MVN vector: `n`
+  2.  The mean vector of the MVN distribution to sample from: `mu.vec`
+  3.  The variance-covariance matrix of the MVN distribution to sample from: `cov.mat`
+
+```{r randmvn}
+randmvn <- function(n, mu.vec, cov.mat){
+
+  # Save the length of the mean vector of the multivariate normal distribution to sample
+  p         <- length(mu.vec);
+  # The Cholesky decomposition
+    #(factorization of a real symmetric positive-definite sqr matrix)
+  Tau       <- chol(cov.mat, pivot=TRUE);
+  # generate normal deviates outside loop
+  Zmat      <- matrix(rnorm(n=p*n,mean=0,sd=1),nrow=p,ncol=n);
+
+  # empty matrix
+  out       <- matrix(0,nrow=p,ncol=n);
+  # iterate
+  for(i in 1:n){
+    Z       <- Zmat[,i];
+    out[,i] <- t(Tau)%*%Z + mu.vec
+  }
+
+  return(out)
+}
+```
+
+
+surveys for 28 years
+```{r}
+S4mat <- Counts.list$S4mat[1:6,1:28] # Cut the last time step: no data anywhere
+S5mat <- Counts.list$S5mat[1:6,1:28]
+S6mat <- Counts.list$S6mat[1:6,1:28]
+
+NA4mat <- NAS.list$NA4mat[1:6,1:28]
+NA5mat <- NAS.list$NA5mat[1:6,1:28]
+NA6mat <- NAS.list$NA6mat[1:6,1:28]
+```
+
+Now we pick a single time series of counts with no `NA`s, and "`cbind()` it" to a column of time, thus getting a matrix with time as a first column and counts as a second column. We use this matrix to compute a first guess of the model parameters to be used in all regions.
+
+```{r}
+ts.4guess  <- S4mat[3,]
+tvec4guess  <- as.numeric(colnames(S4mat))
+onets4guess <- cbind(tvec4guess, ts.4guess) # No NAS for KRV # log(ts.4guess) changed to ts.4guess
+naive.guess <- guess.calc2.0(TimeAndNs = onets4guess)
+naive.guess
+```
+
+The object `naive.guess` include the mean log abundance ($\mu$), the speed of equilibration ($\theta$), and the stochastic environmental variation ($\sigma^2$).
+
+Now, we can bring the distance between regions, using the centroid and distance from the edge of a convex polygon of the historical geolocation of nests in each region. The data was provided in meters, but it could be convenient numerically to convert it to kilometers. In addition, we assign the row names that matches with our survey matrices.
+```{r}
+# mean distance from the centroid 
+centr.dists <- read.csv("Code/Demes_centroid distance in meters.csv")[,-1]
+centr.dists <- as.matrix(centr.dists)/1000
+rownames(centr.dists) <- rownames(S4mat)
+centr.dists
+
+# minimal distance between edges of the convex polygon of nests
+min.condists <- read.csv("Code/Demes_minimum distance in meters.csv")[,-1]
+min.condists <- as.matrix(min.condists)/1000
+rownames(min.condists) <- rownames(S4mat)
+min.condists
+```
+
+The number of (sub)populations `p` is defined and used to construct the initial values for the model. These initial values are a list of a vector at the log scale. This is a trick to have the priors in the positive domain of the lognormal distribution.
+```{r}
+p <- nrow(S4mat)
+myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu ≈ mean(log(ts.4guess)),
+                lthetavec = log(rep(naive.guess[2],p)), # why theta in log?
+                lsigmasq = log(naive.guess[3])) # why sigmasq in log?
+```
+
+We next define the "dinvmat" choosing one of the distance matrices. This is the inverse matrix of distances, because in our model, the effect of one region on the growth rate of another region will be made inversely proportional to their mutual geographical distance.
+```{r}
+dmat <- centr.dists 
+dinvmat <- (dmat/dmat^2)  
+diag(dinvmat) <- rep(0,p)
+dinvmat
+```
+
+## Model and data cloning ML fit:
+
+Above, we mentioned that we would incorporate the effect of the populatin $j$ on the growth rate of the population $i$ as $b_{ij} = \frac{m}{d_{ij}}, i\neq j$, where $d_{ij}$ is the distance between these two regions. We also mentioned that $m$ could be interpreted as the migration probability out of a region, if that region is only 1 spatial unit away from another region.  This model formulation can be problematic or unrealistic because it automatically sets symmetric effects on the growth rate of one deme on the other.  One alternative is to specify as many $b_{ij}$ parameters as $p(p-1)$ to take in consideration asymmetric effects of migration.  Another option that avoids the specification of $p(p-1)$ extra parameters but still allows for asymmetric effects is to shape the $\mathcal{B}$ matrix as a stepping-stone model where two different $m$ values are specified in the following way.  For every deme, there is one other deme that is the closest to it. Let the closest deme to the $i^{\text{th}}$ deme be labelled with the letter $j$.  Let all other demes be labeled with the letter $k$.  Then, specify  the $b_{ij}$ element of the $i^{\text{th}}$ row of the matrix $\mathcal{B}$ as $\frac{m_\text{close}}{d_{ij}}$ and the five other elements $b_{ik}$ in that row as $\frac{m_\text{far}}{d_{ik}}$.  Then, under this model, the growth rate of every deme becomes the recipient of two different types of effect:  the effect of the closest deme to it and the effect of all the other demes to it.  This model embodies the idea of a stepping-stone or nearest neighbor effects.  The model can be fitted via Maximum Likelihood and the Data Cloning algorithm to retrieve the MLEs (Lele et al 2007, Ponciano et al 2009, Lele et al 2010, Ponciano et al 2012). This algorithm basically uses Bayesian statistics and the statistical theory from Lele et al 2010 to retrieve the ML estimates.  Sampling from the target cloned posterior distribution is achieved through MCMC. Using MCMC algorithms (through JAGS), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Ponciano *et al.* 2009](https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/08-0967.1) , [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html),
+[Ponciano *et al.* 2012](https://academic.oup.com/sysbio/article/61/6/955/1665068)).   The process of estimation starts by specifying the model for JAGS:
+
+
+```{r echo=TRUE, eval=TRUE}
+MGSS_DC3.0 <- function(){
+  ##### Priors (no cloning)
+  lmuvec    ~ dmnorm(mupmean, muprec)
+  lthetavec ~ dmnorm(lthetamean, lthetaprec)
+  lsigmasq ~ dnorm(0, 1)
+  #mig ~ dbeta(2,2)
+  mig.near ~ dnorm(0,1)
+  mig.far ~ dnorm(0,1)
+  
+  sigmasq <- exp(lsigmasq)  
+  for(pp in 1:p){
+    muvec[pp] <- exp(lmuvec[pp])
+    thetavec[pp] <- exp(lthetavec[pp])
+    cvec[pp] <- exp(-thetavec[pp])
+  }
+  
+  Sigma <- (1/sigmasq)*Ip
+  
+  for(m in 1:p){
+    for(n in 1:p){
+      B[m,n] <- ifelse((m==n),cvec[m],ifelse(
+        (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+        dinvmat[m,n]*mig.near,dinvmat[m,n]*mig.far)
+      )
+    }
+  }
+  
+  A[1:p]  <- (Ip - B[1:p,1:p])%*%muvec
+  
+  for(k in 1:K){
+    ##### ---- Likelihood (data cloning) ---- #####
+    X[1:p,1,k] ~ dmnorm(muvec, Sigma) #muvec + beta*water[,1]
+    for(h in 1:p){
+      N4[h,1,k] ~ dpois(exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(exp(X[h,1,k]))
+    }
+    for( i in 2:qp1){ 
+      ## Process error
+      X[1:p,i,k]  ~ dmnorm(A[1:p] + B[1:p,1:p]%*%X[1:p,(i-1),k], Sigma); #A[1:p] + beta*water[,1] + B[...]
+      for(j in 1:p){
+        N4[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(exp(X[j,i,k])) ## Observation error        
+      }
+    }
+  }  
+}
+```
+
+We next bundle data for Data cloning fitting into a list. This data list includes a dimension of the clones $K = 1$ that will be used to replicate the model likelihood subsection. It also includes the three replicates per year (`S4mat`, `S5mat`, `S6mat`), but formatted as an array of 6 regions `p` x 28 surveys x a 3rd dimension for the clones. The length of the time series (`qp1`) and the number of regions or (sub)populations (`p`) are used for the iterative process within the model. We provide a vector for the priors of the mean log-abundance `mupmean` and $\log{\theta}$ mean `lthetamean`, with their corresponding variance matrices `muprec` and `lthetaprec` (in precision terms for JAGS). The identity matrix `Ip` brings the mathematical form of 
+
+$$
+\mathbf{I} = \begin{bmatrix} 
+        1 & 0 & 0 & 0 & 0 & 0 \\ 
+        0 & 1 & 0 & 0 & 0 & 0 \\ 
+        0 & 0 & 1 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 1 & 0 & 0 \\ 
+        0 & 0 & 0 & 0 & 1 & 0 \\ 
+        0 & 0 & 0 & 0 & 0 & 1
+    \end{bmatrix},
+$$
+while the distance matrix `dinvmat`. In the model, we have included a step-stone process of movement, represented in the matrix `step.stone`. This is a matrix with 6 rows (one per deme) and two columns.  In these two columns, the i$^\text{th}$ row gives the position (row and column number) in the distance matrix of the closest deme to that i$^\text{th}$ deme.
+
+```{r echo=TRUE, eval=TRUE}
+data4dclone <- list(K=1, 
+                    N4=dcdim(array(S4mat,dim=c(p,ncol(S4mat),1))), 
+                    N5=dcdim(array(S5mat,dim=c(p,ncol(S5mat),1))), 
+                    N6=dcdim(array(S6mat,dim=c(p,ncol(S6mat),1))), 
+                    qp1=ncol(S4mat), 
+                    p=p, 
+                    mupmean=rep(6,p), 
+                    muprec=(1/3)*diag(p),
+                    lthetamean = rep(0.5,p), 
+                    lthetaprec =  10*diag(p),
+                    Ip =  diag(p),
+                    dinvmat = dinvmat,
+                    step.stone = matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                                        nrow=6,ncol=2,byrow=TRUE)
+)
+```
+
+Finally, we set up the number of clones, the MCMC chains, which parameters to sample, and fit the data cloning model (it takes some time, so it is in `eval = FALSE` at this moment).
+```{r setup first datacloning model fit, eval=FALSE}
+cl.seq <- c(1,8,16);
+n.iter<-100000;n.adapt<-50000;n.update<-100;thin<-10;n.chains<-3;
+
+out.parms <- c("muvec", "cvec", "mig.near", "mig.far", "sigmasq", "A")
+mgssdclone <- dc.fit(data4dclone, 
+                     params=out.parms, 
+                     model=MGSS_DC3.0, 
+                     n.clones=cl.seq,
+                     multiply="K", 
+                     unchanged = c("qp1","p","mupmean","muprec", 
+                      "step.stone", "lthetamean","lthetaprec", "Ip","dinvmat"),
+                     n.chains = n.chains, 
+                     n.adapt=n.adapt, 
+                     n.update=n.update,
+                     n.iter = n.iter, 
+                     thin=thin, 
+                     inits=myinits) 
+#saveRDS(mgssdclone, "Code/mgssdclone.RDS")
+```
+
+Let's check this model. We can see the diagnostics for estimability of the parameters with the `dcdiag()` function in the package `dclone`, as well as the `summary` and confidence intervals of the estimates. The variable `lambda.max` is the largest eigenvalue of the posterior variance covariance matrix, while `ms.error` represents the mean squared error, and the `r.squared` is a correlation-like fit statistic. All three statistics should decrease (converge to zero) as a function of the number of clones. Furthermore, the multivariate `r.hat` value is used to check MCMC chain convergence (should be near to 1).
+
+```{r echo=TRUE, eval=TRUE}
+mgssdclone <- readRDS("Code/mgssdclone.RDS")
+dcdiag(mgssdclone)
+summary(mgssdclone)
+confint(mgssdclone)
+```
+We can save the MLEs and predict the dynamic of the population for each region with the Kalman filter estimates
+
+```{r echo=TRUE, eval=TRUE}
+mlescentrdist <- summary(mgssdclone)[[1]]
+mles4kalman <- mlescentrdist[,1]
+mles4kalman
+avec4kalman <- mles4kalman[1:6]
+cvec4kalman <- mles4kalman[7:12]
+mig.far4kalman  <- mles4kalman[13]
+mig.near4kalman <- mles4kalman[14]
+muvec4kalman <- mles4kalman[15:20]
+sigsq4kalman <- mles4kalman[21]
+```
+
+## Kalman estimates of abundance with effect of assymetric migration
+
+```{r echo=TRUE, eval=TRUE}
+MGSS_KALMAN2.0 <- function(){
+  
+  A  <- (Ip - B)%*%muvec
+  Sigma <- (1/sigmasq)*Ip
+  
+  ##### ---- Likelihood ---- #####
+  X[1:p,1] ~ dmnorm(muvec, Sigma)
+  for(h in 1:p){
+    N4[h,1] ~ dpois(exp(X[h,1]))
+    N5[h,1] ~ dpois(exp(X[h,1]))    
+    N6[h,1] ~ dpois(exp(X[h,1]))    
+  }
+  for( i in 2:qp1){ 
+    ## Process error
+    X[1:p,i]  ~ dmnorm(A + B%*%X[1:p,(i-1)], Sigma); 
+    for(j in 1:p){
+      N4[j,i]  ~ dpois(exp(X[j,i])) ## Observation error
+      N5[j,i]  ~ dpois(exp(X[j,i])) ## Observation error      
+      N6[j,i]  ~ dpois(exp(X[j,i])) ## Observation error
+    }
+  }
+  
+  for(i in 1:p){
+    for(j in 1:qp1){
+    Nhat[i,j] <- exp(X[i,j])
+    }
+  }
+}
+```
+
+Data for Kalman estimates
+
+```{r echo=TRUE, eval=TRUE}
+step.stone <- matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                     nrow=6,
+                     ncol=2,
+                     byrow=TRUE)
+step.stone
+
+B <- matrix(0,p,p)
+
+for(m in 1:p){
+  for(n in 1:p){
+    B[m,n] <- ifelse((m==n),cvec4kalman[m],ifelse(
+      (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+      dinvmat[m,n]*mig.near4kalman,dinvmat[m,n]*mig.far4kalman)
+    ) #
+    
+  }
+}
+
+print(B)
+
+data4kalman <- list(N4=S4mat,
+                    N5=S5mat,
+                    N6=S6mat,
+                    qp1=ncol(S4mat), 
+                    p=p,
+                    Ip =  diag(p),
+                    muvec = muvec4kalman,
+                    sigmasq = sigsq4kalman, 
+                    B=B
+)
+str(data4kalman)
+```
+
+```{r echo=TRUE, eval=TRUE}
+n.iter<-100000
+n.adapt<-1000
+n.update<-100
+thin<-10
+n.chains<-3
+
+out.parms <- c("X","Nhat")
+kalman.mcmcw <- jags.fit(data4kalman, 
+                         params=out.parms, 
+                         model=MGSS_KALMAN2.0, 
+                         n.chains = n.chains, 
+                         n.adapt=n.adapt, 
+                         n.update=n.update, 
+                         n.iter = n.iter, 
+                         thin=thin)
+```
+
+And then, bring back the data to see the population trajectories in each region.
+
+```{r echo=TRUE, eval=TRUE}
+Xkalman <-  do.call(rbind, kalman.mcmcw)
+
+Kalman.quants <- apply(Xkalman, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) 
+
+```
+
+Here, we can plot the Kalman estimates, with CI. With classic R code format
+
+```{r echo=TRUE, eval=TRUE}
+len <- ncol(S4mat)
+deme.names <- row.names(S4mat)
+# Now we define a color palette for plotting:
+cool.palette <- as.vector(met.brewer("Homer2",6))
+
+names.quants <- substr(colnames(Kalman.quants), start=1, stop=3)
+X1s <- Kalman.quants[,which(names.quants=="X[1", arr.ind=TRUE)]
+X2s <- Kalman.quants[,which(names.quants=="X[2", arr.ind=TRUE)]
+X3s <- Kalman.quants[,which(names.quants=="X[3", arr.ind=TRUE)]
+X4s <- Kalman.quants[,which(names.quants=="X[4", arr.ind=TRUE)]
+X5s <- Kalman.quants[,which(names.quants=="X[5", arr.ind=TRUE)]
+X6s <- Kalman.quants[,which(names.quants=="X[6", arr.ind=TRUE)]
+
+par(mfrow=c(2,3), oma=c(1,1,1,1), mar=c(4,5,2,1))
+plot(1:len, X1s[2,], pch=16, type="b", col=cool.palette[1],
+     ylim=c(min(X1s),max(X1s)), 
+     main =deme.names[1], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X1s[1,],rev(X1s[3,])), 
+        col=scales::alpha(cool.palette[1],0.1), border=NA)
+points(1:len, X1s[2,],pch=16, type="b", col=cool.palette[1])
+points(1:len, log(S4mat[1,]),pch=16, type="b", col="black")
+
+plot(1:len, X2s[2,], pch=16, type="b", col=cool.palette[2],
+     ylim=c(min(X2s),max(X2s)), 
+     main =deme.names[2], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X2s[1,],rev(X2s[3,])), 
+        col=scales::alpha(cool.palette[2],0.1), border=NA)
+points(1:len, X2s[2,],pch=16, type="b", col=cool.palette[2])
+points(1:len, log(S4mat[2,]),pch=16, type="b", col="black")
+
+plot(1:len, X3s[2,], pch=16, type="b", col=cool.palette[3],
+     ylim=c(min(X3s),max(X3s)), 
+     main =deme.names[3], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X3s[1,],rev(X3s[3,])), 
+        col=scales::alpha(cool.palette[3],0.1), border=NA)
+points(1:len, X3s[2,],pch=16, type="b", col=cool.palette[3])
+points(1:len, log(S4mat[3,]),pch=16, type="b", col="black")
+
+
+plot(1:len, X4s[2,], pch=16, type="b", col=cool.palette[4],
+     ylim=c(min(X4s),max(X4s)), 
+     main =deme.names[4], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X4s[1,],rev(X4s[3,])), 
+        col=scales::alpha(cool.palette[4],0.1), border=NA)
+points(1:len, X4s[2,],pch=16, type="b", col=cool.palette[4])
+points(1:len, log(S4mat[4,]),pch=16, type="b", col="black")
+
+
+plot(1:len, X5s[2,], pch=16, type="b", col=cool.palette[5],
+     ylim=c(min(X5s),max(X5s)), 
+     main =deme.names[5], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X5s[1,],rev(X5s[3,])), 
+        col=scales::alpha(cool.palette[5],0.1), border=NA)
+points(1:len, X5s[2,],pch=16, type="b", col=cool.palette[5])
+points(1:len, log(S4mat[5,]),pch=16, type="b", col="black")
+
+plot(1:len, X6s[2,], pch=16, type="b", col=cool.palette[6],
+     ylim=c(min(X6s),max(X6s)), 
+     main =deme.names[6], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X6s[1,],rev(X6s[3,])), 
+        col=scales::alpha(cool.palette[6],0.1), border=NA)
+points(1:len, X6s[2,],pch=16, type="b", col=cool.palette[6])
+points(1:len, log(S4mat[6,]),pch=16, type="b", col="black")
+
+```
+![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling.JPEG)<br>
+
+
+Just to check, how does the estimate of the total population size from Mark-recapture compares to the sum of the exponential of the Kalman estimates?
+
+```{r First Kalman comparison to mark-recapture}
+names.quants2 <- substr(colnames(Kalman.quants), start=1, stop=6)
+Nhats1 <- Kalman.quants[,which(names.quants2=="Nhat[1", arr.ind=TRUE)]
+Nhats2 <- Kalman.quants[,which(names.quants2=="Nhat[2", arr.ind=TRUE)]
+Nhats3 <- Kalman.quants[,which(names.quants2=="Nhat[3", arr.ind=TRUE)]
+Nhats4 <- Kalman.quants[,which(names.quants2=="Nhat[4", arr.ind=TRUE)]
+Nhats5 <- Kalman.quants[,which(names.quants2=="Nhat[5", arr.ind=TRUE)]
+Nhats5[1:3,1:22] <- 0
+Nhats6 <- Kalman.quants[,which(names.quants2=="Nhat[6", arr.ind=TRUE)]
+
+NsLCL <- Nhats1[1,] + Nhats2[1,] + Nhats3[1,] + Nhats4[1,] + Nhats5[1,] + Nhats6[1,] 
+NsMLE <- Nhats1[2,] + Nhats2[2,] + Nhats3[2,] + Nhats4[2,] + Nhats5[2,] + Nhats6[2,] 
+NsUCL <- Nhats1[3,] + Nhats2[3,] + Nhats3[3,] + Nhats4[3,] + Nhats5[3,] + Nhats6[3,] 
+
+par(mfrow=c(1,1))
+plot(1:len, NsMLE, pch=16, type="b", col=cool.palette[6],
+     main ="Super Population Estimate", 
+     ylim= c(0,2500),
+     xlab="Time", 
+     ylab="Population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(NsLCL,rev(NsUCL)), 
+        col=scales::alpha(cool.palette[1],0.1), border=NA)
+points(1:len, NsMLE,pch=16, type="b", col=cool.palette[1])
+
+
+### Mark-recapture 
+
+mark.dat <- read.csv("Code/2024_1997_popsize_ci.csv", header=TRUE)
+
+names(mark.dat)
+
+plot(mark.dat$Nsuper,NsMLE, pch=16, xlim=c(0,3500), ylim=c(0,3500))
+abline(a=0,b=1)
+
+write.csv(cbind(NsLCL,NsMLE,NsUCL), file="Code/TimeSeriesMLEs.csv")
+
+
+```
+
+
+Now we write a model that includes an extra parameter for detectability:
+```{r detectability model}
+MGSS_DC4.0 <- function(){
+  ##### Priors (no cloning)
+  lmuvec    ~ dmnorm(mupmean, muprec)
+  lthetavec ~ dmnorm(lthetamean, lthetaprec)
+  lsigmasq ~ dnorm(0, 1)
+  #mig ~ dbeta(2,2)
+  mig.near ~ dnorm(0,1)
+  mig.far ~ dnorm(0,1)
+  ldetectp ~ dnorm(0,1)
+  detectp <- 1/(1+exp(-ldetectp))
+  
+  sigmasq <- exp(lsigmasq)  
+  for(pp in 1:p){
+    muvec[pp] <- exp(lmuvec[pp])
+    thetavec[pp] <- exp(lthetavec[pp])
+    cvec[pp] <- exp(-thetavec[pp])
+  }
+  
+  Sigma <- (1/sigmasq)*Ip
+  
+  for(m in 1:p){
+    for(n in 1:p){
+      B[m,n] <- ifelse((m==n),cvec[m],ifelse(
+        (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+        dinvmat[m,n]*mig.near,dinvmat[m,n]*mig.far)
+      )
+    }
+  }
+  
+  A[1:p]  <- (Ip - B[1:p,1:p])%*%muvec
+  
+  for(k in 1:K){
+    ##### ---- Likelihood (data cloning) ---- #####
+    X[1:p,1,k] ~ dmnorm(muvec, Sigma) #muvec + beta*water[,1]
+    for(h in 1:p){
+      N4[h,1,k] ~ dpois(detectp*exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(detectp*exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(detectp*exp(X[h,1,k]))
+    }
+    for( i in 2:qp1){ 
+      ## Process error
+      X[1:p,i,k]  ~ dmnorm(A[1:p] + B[1:p,1:p]%*%X[1:p,(i-1),k], Sigma); #A[1:p] + beta*water[,1] + B[...]
+      for(j in 1:p){
+        N4[j,i,k]  ~ dpois(detectp*exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(detectp*exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(detectp*exp(X[j,i,k])) ## Observation error        
+      }
+    }
+  }  
+}
+
+
+```
+And getting the data to do the data cloning:
+
+```{r echo=TRUE, eval=TRUE}
+data4dclone <- list(K=1, 
+                    N4=dcdim(array(S4mat,dim=c(p,ncol(S4mat),1))), 
+                    N5=dcdim(array(S5mat,dim=c(p,ncol(S5mat),1))), 
+                    N6=dcdim(array(S6mat,dim=c(p,ncol(S6mat),1))), 
+                    qp1=ncol(S4mat), 
+                    p=p, 
+                    mupmean=rep(6,p), 
+                    muprec=(1/3)*diag(p),
+                    lthetamean = rep(0.5,p), 
+                    lthetaprec =  10*diag(p),
+                    Ip =  diag(p),
+                    dinvmat = dinvmat,
+                    step.stone = matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                                        nrow=6,ncol=2,byrow=TRUE)
+)
+```
+
+Finally, we set up the number of clones, the MCMC chains, which parameters to sample, and fit the data cloning model (it takes some time, so it is in `eval = FALSE` at this moment).
+```{r echo=TRUE, eval=FALSE}
+cl.seq <- c(18);
+n.iter<-100000;n.adapt<-50000;n.update<-100;thin<-10;n.chains<-3;
+
+out.parms <- c("muvec", "cvec", "mig.near", "mig.far", "sigmasq", "A", "detectp")
+mgssdclone2<- dc.fit(data4dclone, 
+                     params=out.parms, 
+                     model=MGSS_DC4.0, 
+                     n.clones=cl.seq,
+                     multiply="K", 
+                     unchanged = c("qp1","p","mupmean","muprec", 
+                      "step.stone", "lthetamean","lthetaprec", "Ip","dinvmat"),
+                     n.chains = n.chains, 
+                     n.adapt=n.adapt, 
+                     n.update=n.update,
+                     n.iter = n.iter, 
+                     thin=thin, 
+                     inits=myinits) 
+#saveRDS(mgssdclone2, "Code/mgssdclone2.RDS")
+
+```
+
+Let's check this model:
+
+```{r echo=TRUE, eval=TRUE}
+mgssdclone2 <- readRDS("Code/mgssdclone2.RDS")
+dcdiag(mgssdclone2)
+summary(mgssdclone2)
+confint(mgssdclone2)
+```
+Now let's save the MLEs and predict the dynamic of the population for each region with the Kalman filter estimates
+
+```{r echo=TRUE, eval=TRUE}
+mlescentrdist2 <- summary(mgssdclone2)[[1]]
+mles4kalman2 <- mlescentrdist2[,1]
+mles4kalman2
+avec4kalman2 <- mles4kalman2[1:6]
+cvec4kalman2 <- mles4kalman2[7:12]
+detectp4kalman2 <- mles4kalman2[13] ### Check this
+mig.far4kalman2  <- mles4kalman2[14]
+mig.near4kalman2 <- mles4kalman2[15]
+muvec4kalman2 <- mles4kalman2[16:21]
+sigsq4kalman2 <- mles4kalman2[22]
+# Retrieve the detect probability now as well
+
+```
+
+And the new Kalman estimates sampler:
+```{r}
+MGSS_KALMAN3.0 <- function(){
+  
+  A  <- (Ip - B)%*%muvec
+  Sigma <- (1/sigmasq)*Ip
+  
+  ##### ---- Likelihood ---- #####
+  X[1:p,1] ~ dmnorm(muvec, Sigma)
+  for(h in 1:p){
+    N4[h,1] ~ dpois(detectp*exp(X[h,1]))
+    N5[h,1] ~ dpois(detectp*exp(X[h,1]))    
+    N6[h,1] ~ dpois(detectp*exp(X[h,1]))    
+  }
+  for( i in 2:qp1){ 
+    ## Process error
+    X[1:p,i]  ~ dmnorm(A + B%*%X[1:p,(i-1)], Sigma); 
+    for(j in 1:p){
+      N4[j,i]  ~ dpois(detectp*exp(X[j,i])) ## Observation error
+      N5[j,i]  ~ dpois(detectp*exp(X[j,i])) ## Observation error      
+      N6[j,i]  ~ dpois(detectp*exp(X[j,i])) ## Observation error
+    }
+  }
+
+  for(i in 1:p){
+    for(j in 1:qp1){
+      Nhat[i,j] <- exp(X[i,j])
+    }
+  }
+    
+}
+```
+
+Bundling data for the new Kalman estimates:
+```{r}
+step.stone <- matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                     nrow=6,
+                     ncol=2,
+                     byrow=TRUE)
+step.stone
+
+B2 <- matrix(0,p,p)
+
+for(m in 1:p){
+  for(n in 1:p){
+    B2[m,n] <- ifelse((m==n),cvec4kalman2[m],ifelse(
+      (m==step.stone[m,1])&&(n==step.stone[m,2]), 
+      dinvmat[m,n]*mig.near4kalman2,dinvmat[m,n]*mig.far4kalman2)
+    ) #
+    
+  }
+}
+
+print(B2)
+
+data4kalman2 <- list(N4=S4mat,
+                    N5=S5mat,
+                    N6=S6mat,
+                    qp1=ncol(S4mat), 
+                    p=p,
+                    Ip =  diag(p),
+                    muvec = muvec4kalman2,
+                    sigmasq = sigsq4kalman2, 
+                    B=B2,
+                    detectp = detectp4kalman2
+)
+str(data4kalman2)
+```
+
+And finally set up and sample the Kalman estimates
+```{r set up and fit Kalman estimate model}
+n.iter<-100000
+n.adapt<-1000
+n.update<-100
+thin<-10
+n.chains<-3
+
+out.parms <- c("X","Nhat")
+kalman.mcmcw2 <- jags.fit(data4kalman2, 
+                         params=out.parms, 
+                         model=MGSS_KALMAN3.0, 
+                         n.chains = n.chains, 
+                         n.adapt=n.adapt, 
+                         n.update=n.update, 
+                         n.iter = n.iter, 
+                         thin=thin)
+```
+
+And then, bring back the data to see the population trajectories in each region.
+
+```{r}
+Xkalman2 <-  do.call(rbind, kalman.mcmcw2)
+Kalman.quants2 <- apply(Xkalman2, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) 
+
+```
+
+Here, we can plot the new Kalman estimates, with CI. 
+
+```{r echo=TRUE, eval=TRUE}
+len <- ncol(S4mat)
+deme.names <- row.names(S4mat)
+# Now we define a color palette for plotting:
+cool.palette <- as.vector(met.brewer("Homer2",6))
+
+names.quants2 <- substr(colnames(Kalman.quants2), start=1, stop=3)
+X1s2 <- Kalman.quants2[,which(names.quants2=="X[1", arr.ind=TRUE)]
+X2s2 <- Kalman.quants2[,which(names.quants2=="X[2", arr.ind=TRUE)]
+X3s2 <- Kalman.quants2[,which(names.quants2=="X[3", arr.ind=TRUE)]
+X4s2 <- Kalman.quants2[,which(names.quants2=="X[4", arr.ind=TRUE)]
+X5s2 <- Kalman.quants2[,which(names.quants2=="X[5", arr.ind=TRUE)]
+X6s2 <- Kalman.quants2[,which(names.quants2=="X[6", arr.ind=TRUE)]
+
+X1s2 <- exp(X1s2)
+X2s2 <- exp(X2s2)
+X3s2 <- exp(X3s2)
+X4s2 <- exp(X4s2)
+X5s2 <- exp(X5s2)
+X6s2 <- exp(X6s2)
+
+
+par(mfrow=c(2,3), oma=c(1,1,1,1), mar=c(4,5,2,1))
+plot(1:len, X1s2[2,], pch=16, type="b", col=cool.palette[1],
+     ylim=c(min(X1s2),max(X1s2)), 
+     main =deme.names[1], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X1s2[1,],rev(X1s2[3,])), 
+        col=scales::alpha(cool.palette[1],0.1), border=NA)
+points(1:len, X1s2[2,],pch=16, type="b", col=cool.palette[1])
+points(1:len, S4mat[1,],pch=16, type="b", col="black")
+
+plot(1:len, X2s2[2,], pch=16, type="b", col=cool.palette[2],
+     ylim=c(min(X2s2),max(X2s2)), 
+     main =deme.names[2], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X2s2[1,],rev(X2s2[3,])), 
+        col=scales::alpha(cool.palette[2],0.1), border=NA)
+points(1:len, X2s2[2,],pch=16, type="b", col=cool.palette[2])
+points(1:len, S4mat[2,],pch=16, type="b", col="black")
+
+plot(1:len, X3s2[2,], pch=16, type="b", col=cool.palette[3],
+     ylim=c(min(X3s2),max(X3s2)), 
+     main =deme.names[3], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X3s2[1,],rev(X3s2[3,])), 
+        col=scales::alpha(cool.palette[3],0.1), border=NA)
+points(1:len, X3s2[2,],pch=16, type="b", col=cool.palette[3])
+points(1:len, S4mat[3,],pch=16, type="b", col="black")
+
+
+plot(1:len, X4s2[2,], pch=16, type="b", col=cool.palette[4],
+     ylim=c(min(X4s2),max(X4s2)), 
+     main =deme.names[4], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X4s2[1,],rev(X4s2[3,])), 
+        col=scales::alpha(cool.palette[4],0.1), border=NA)
+points(1:len, X4s2[2,],pch=16, type="b", col=cool.palette[4])
+points(1:len, S4mat[4,],pch=16, type="b", col="black")
+
+
+plot(1:len, X5s2[2,], pch=16, type="b", col=cool.palette[5],
+     ylim=c(min(X5s2),max(X5s2)), 
+     main =deme.names[5], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X5s2[1,],rev(X5s2[3,])), 
+        col=scales::alpha(cool.palette[5],0.1), border=NA)
+points(1:len, X5s2[2,],pch=16, type="b", col=cool.palette[5])
+points(1:len, S4mat[5,],pch=16, type="b", col="black")
+
+plot(1:len, X6s2[2,], pch=16, type="b", col=cool.palette[6],
+     ylim=c(min(X6s2),max(X6s2)), 
+     main =deme.names[6], 
+     xlab="Time", 
+     ylab="log-population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(X6s2[1,],rev(X6s2[3,])), 
+        col=scales::alpha(cool.palette[6],0.1), border=NA)
+points(1:len, X6s2[2,],pch=16, type="b", col=cool.palette[6])
+points(1:len, S4mat[6,],pch=16, type="b", col="black")
+
+```
+![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling-pdetect.JPEG)<br>
+
+Just to check, how does the estimate of the total population size from Mark-recapture compares to the sum of the exponential of the Kalman estimates?
+
+```{r Kalman comparison to mark-recapture}
+names.quants4 <- substr(colnames(Kalman.quants2), start=1, stop=6)
+Nhats1.2 <- Kalman.quants2[,which(names.quants4=="Nhat[1", arr.ind=TRUE)]
+Nhats2.2 <- Kalman.quants2[,which(names.quants4=="Nhat[2", arr.ind=TRUE)]
+Nhats3.2 <- Kalman.quants2[,which(names.quants4=="Nhat[3", arr.ind=TRUE)]
+Nhats4.2 <- Kalman.quants2[,which(names.quants4=="Nhat[4", arr.ind=TRUE)]
+Nhats5.2 <- Kalman.quants2[,which(names.quants4=="Nhat[5", arr.ind=TRUE)]
+Nhats5.2[1:3,1:22] <- 0
+Nhats6.2 <- Kalman.quants2[,which(names.quants4=="Nhat[6", arr.ind=TRUE)]
+
+NsLCL.2 <- Nhats1.2[1,] + Nhats2.2[1,] + Nhats3.2[1,] + Nhats4.2[1,] + Nhats5.2[1,] + Nhats6.2[1,] 
+NsMLE.2 <- Nhats1.2[2,] + Nhats2.2[2,] + Nhats3.2[2,] + Nhats4.2[2,] + Nhats5.2[2,] + Nhats6.2[2,] 
+NsUCL.2 <- Nhats1.2[3,] + Nhats2.2[3,] + Nhats3.2[3,] + Nhats4.2[3,] + Nhats5.2[3,] + Nhats6.2[3,] 
+
+par(mfrow=c(1,1))
+plot(1:len, NsMLE.2, pch=16, type="b", col=cool.palette[6],
+     main ="Super Population Estimate", 
+     ylim= c(0,2500),
+     xlab="Time", 
+     ylab="Population sizes", bty="l")
+polygon(c(1:len,rev(1:len)), c(NsLCL.2,rev(NsUCL.2)), 
+        col=scales::alpha(cool.palette[1],0.1), border=NA)
+points(1:len, NsMLE.2,pch=16, type="b", col=cool.palette[1])
+
+
+### Mark-recapture 
+
+mark.dat <- read.csv("Code/2024_1997_popsize_ci.csv", header=TRUE)
+
+names(mark.dat)
+
+plot(mark.dat$Nsuper,NsMLE.2, pch=16, xlim=c(0,3500), ylim=c(0,3500))
+abline(a=0,b=1)
+
+write.csv(cbind(NsLCL.2,NsMLE.2,NsUCL.2), file="Code/TimeSeriesMLEs-pdetect.csv")
+
+
+```

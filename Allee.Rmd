@@ -26,14 +26,14 @@ $$\lambda = {\rm e}^{a-\frac{\psi\theta}{\theta+n}},$$
 
 $$N_{t+1}|(N_{t}=n_{t},Y) \sim {\rm Binomial}(Y,p(n_{t})).$$
 \noindent Unconditionally (*i.e.* after averaging over all the possible values of $Y$), it follows that
-$$N_{t+1}|(N_{t}=n_{t}) \sim {\rm Poisson}\left({\rm e}^{a-bn_{t} -\frac{\psi\theta}{\theta+n}}\right).$$
+$$N_{t+1}|(N_{t}=n_{t}) \sim {\rm Poisson}\left(n_{t}{\rm e}^{a-bn_{t} -\frac{\psi\theta}{\theta+n}}\right).$$
 This Poisson distribution then defines the transition probabilities from any fixed population size $n_t$ to a new population size $N_{t+1}$. Note that here, the use of capital letters is done according to standard practice in statistics to represent all the possible outcomes of a random variable whereas the lower case letters represent realized, fixed values of a random variable.  Parameters are denoted as single roman or greek letters.  The above derivation fully defines a Markovian population dynamics process with negative density dependence, an Allee effect and demographic stochasticity.
 
 An alternative model results from adding the effects of environmental stochasticity. To specify a model with both, demographic and environmental stochasticities, we start by redefining $\Lambda_{t} = \exp\{a_{t}\}$, and assuming this quantity varies randomly over time thus embodying environmental stochasticity [Lewontin and Cohen 1969](https://www.pnas.org/doi/abs/10.1073/pnas.62.4.1056).  Here, we set $\Lambda_{t}\sim {\rm Gamma}(\alpha,k)$. Then, conditional on the particular year's realization of the environmental process $\Lambda_t$, the transition probability distribution would be  
 
-$$N_{t+1}|(N_{t}=n_{t},\Lambda_{t}) \sim {\rm Poisson}\left(\Lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}\right),$$
+$$N_{t+1}|(N_{t}=n_{t},\Lambda_{t}) \sim {\rm Poisson}\left(n_{t}\Lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}\right),$$
 \noindent and averaging out the environmental process over time with this integral 
-$$Pr(N_{t+1}=n_{t+1}|N_{t}=n_{t}) = \int_{0}^{\infty}\frac{{\rm e}^{-\lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}}\left(\lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}\right)^{n_{t+1}}}{n_{t+1}!}\frac{\alpha^{k}}{\Gamma(k)}\lambda_{t}^{k-1}{\rm e}^{-\alpha\lambda_{t}} d\lambda_{t}$$
+$$Pr(N_{t+1}=n_{t+1}|N_{t}=n_{t}) = \int_{0}^{\infty}\frac{{\rm e}^{-n_{t}\lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}}\left(n_{t}\lambda_{t}{\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n}}\right)^{n_{t+1}}}{n_{t+1}!}\frac{\alpha^{k}}{\Gamma(k)}\lambda_{t}^{k-1}{\rm e}^{-\alpha\lambda_{t}} d\lambda_{t}$$
 \noindent immediately gives the following Negative Binomial transition probability distribution that incorporates the effects of both, demographic and environmental stochasticities:
 $$Pr(N_{t+1}=n_{t+1}|N_{t}=n_{t}) =\frac{\Gamma(n_{t+1}+k)}{\Gamma(k)n_{t+1}!}{\rm P}^{k}{\rm Q}^{n_{t+1}},\,\text{where}$$
 ${\rm P} + {\rm Q} = 1,\,{\rm P} = \frac{\alpha}{g(n_{t})+\alpha}$ and $g(n_{t}) = {\rm e}^{-bn_{t} -\frac{\psi\theta}{\theta+n_{t}}}$.
@@ -55,10 +55,142 @@ Of these two solutions, the one for which the specific parameter values gives $\
 $$f'(n) = {\rm e}^{a-bn-\frac{\psi\theta}{(\theta +n)}}\left(1 - nb + \frac{n\psi\theta}{(\theta +n)^{2}} \right).$$
 \noindent Evaluating this derivative on the equilibria gives 
 $$f'(n^{*}) = \left(1 - n^{*}b + \frac{n^{*}\psi\theta}{(\theta +n^{*})^{2}} \right).$$
-Alright, once the deterministic model has been examined, the unstable equilibrium found and given that we have the transition probability distributions for two versions of a stochastic population dynamics model, we are ready to estimate the model parameters. Here as before, the logical thing to do is expand this single population model to the multiple demes scenario and add an extra migration term to the model.  Before doing so, I present the estimation of the Allee effect model for the aggregated population counts using JAGS.
+Alright, once the deterministic model has been examined, the unstable equilibrium found and given that we have the transition probability distributions for two versions of a stochastic population dynamics model, we are ready to estimate the model parameters. Here as before, the logical thing to do is expand this single population model to the multiple demes scenario and add an extra migration term to the model.  Before doing so, I present a few simulations to visualize the behavior of the model at the unstable equilibrium and  the estimation of the Allee effect model for the aggregated population counts using JAGS.
+
+```{r}
+# Function to simulate from Poisson-Ricker model
+Allee.Ricker.Sim <- function(a,b,psi,theta,no,len){
+	
+	# Note:  b>0 because I have a '-' here:exp(a-b*nim1)
+	popvec <- rep(0,len)
+	popvec[1] <- no
+	for(i in 2:len){
+		nim1  <- popvec[(i-1)] 
+		mean.pois <- nim1*exp(a-b*nim1 - psi*theta/(nim1+theta)) 
+		popvec[i] <- mean.pois		
+	}
+	return(popvec)	
+}
+a <- 0.88
+b <- 0.003#0.002
+psi <- 1.1#seq(0.5,0.8,by=0.01)
+theta <- 60
+
+real.sol.test <- ((a^2 + 2*a*b*theta + (b^2)*(theta^2))/(4*b*theta)) > psi
+print(real.sol.test)
+
+n1.star <- ((a-b*theta) + sqrt(a^2 + 2*a*b*theta + (b^2)*(theta^2)-4*b*psi*theta))/(2*b)
+n2.star <- ((a-b*theta) - sqrt(a^2 + 2*a*b*theta + (b^2)*(theta^2)-4*b*psi*theta))/(2*b)
+print(n1.star)
+print(n2.star)
+
+f.prime.nstar1 <- 1-n1.star*b + (n1.star*psi*theta)/((theta+n1.star)^2)
+f.prime.nstar2 <- 1-n2.star*b + (n2.star*psi*theta)/((theta+n2.star)^2)
+
+print(abs(f.prime.nstar1)) # <1 so stable equilibrium
+print(abs(f.prime.nstar2)) # >1 so unstable equilibrium
+
+len <- 20
+novec <- seq(from=floor(n2.star)-10, to= floor(n1.star)+100, by=5)
+ntrajs <- length(novec)
+trajmat <- matrix(0,nrow=ntrajs, ncol=len)
+for(i in 1:ntrajs){
+  
+  trajmat[i,] <- Allee.Ricker.Sim(a=a,b=b,psi=psi,theta=theta,no=novec[i], len=len)
+  
+}
+par(mfrow=c(1,1))
+for(i in 1:ntrajs){
+  
+  if(i==1){plot(1:len,trajmat[i,],type="l", lwd=1, col="blue", 
+                xlab="Time", ylab="Population size", bty="l",
+                ylim=range(trajmat),
+                main=expression(paste(psi==1.1,", ",theta==60,", a=0.88", ", b=0.003")))
+                }else{
+          points(1:len,trajmat[i,],type="l", lwd=1, col="blue")      
+        }
+}
+abline(h=n1.star, lwd=2, col="red")
+abline(h=n2.star, lwd=2, col="red")
 
 
+```
 
+OK, now we write down a stochastic population dynamics model simulator and compute the probability of extinction when the initial population size changes from low to high, between 0 and $n_{1}^{*}$ passing through $n_{2}^{*}$
+
+```{r  stoch sim ftn}
+
+Allee.SRicker.Sim <- function(k,alpha,b,psi,theta,no,len){
+	
+	# Note:  b>0 because I have a '-' here:exp(a-b*nim1)
+	popvec <- rep(0,len)
+	popvec[1] <- no
+	for(i in 2:len){
+		nim1  <- popvec[(i-1)] 
+		Lam <- rgamma(n=1,shape=k,rate=alpha)
+		mean.pois <- Lam*nim1*exp(-b*nim1 - psi*theta/(nim1+theta)) 
+		popvec[i] <- rpois(n=1,lambda=mean.pois)		
+	}
+	return(popvec)	
+}
+
+# Selecting gamma parameter values so that shape/rate = exp(a)
+E.gamma <- exp(a)
+
+#Set the shape parameter to 6
+shape.p <- 6
+rate.p  <- shape.p/E.gamma
+rate.p
+shape.p/(rate.p^2)
+
+novec <- seq(from=floor(n2.star), to= floor(n1.star)+80, by=5)
+novec <- c(seq(1,(novec[1]-1),by=5),novec)
+ntrajs <- length(novec)
+```
+
+Now we do the simulations tracking progress for good measure
+```{r echo=TRUE, eval=FALSE}
+Nsims <- 100000 # number of simulations to estimate P(extinct) for each "no"
+len <- 30
+
+library(progress) # For progress bar
+trajoutcome <- matrix(0,nrow=Nsims, ncol=ntrajs)
+
+pb <- progress_bar$new(total=ntrajs)
+for(i in 1:ntrajs){
+  
+  pb$tick() #new progress bar tick
+  Sys.sleep(1/ntrajs)
+  
+  for(j in 1:Nsims){
+    
+    ijsim <- Allee.SRicker.Sim(k=shape.p, alpha=rate.p,b=b,psi=psi,theta=theta,no=novec[i], len=len)
+    trajoutcome[j,i] <- ijsim[len] == 0
+    
+  }
+  
+}
+
+ext.probs <- apply(trajoutcome,2,function(x){sum(x)/length(x)})
+#length(ext.probs)
+#length(50:90)
+
+saveRDS(ext.probs, "Code/ext.probs.RDS")
+```
+
+```{r}
+ext.probs <- readRDS("Code/ext.probs.RDS")
+par(mfrow=c(1,1), oma=c(1,1,1,1), mar=c(5,5,3,2))
+plot(novec,ext.probs, type="l", lwd=2,col="blue", 
+     bty="l",xlim=c(0,250), ylim=c(0.1,1.2),
+     xlab="Initial Population Size", ylab="Simulated Extinction Probability",
+     axes=FALSE, cex.lab=1.25)
+axis(side=1, at=seq(0,250,by=50))
+axis(side=2, at=seq(0.2,1.0,by=0.2))
+points(rep(n2.star,2), c(0.075,1), type="l", col="red")
+text(n2.star+5,0.10, expression(n[2]^"*"))
+
+```
 
 
 First, let's load the packages in `R` needed to run this code
@@ -77,3 +209,164 @@ library(tidyverse)
 library(MetBrewer)
 ```
 
+First we read the data
+```{r Reading the data}
+rawdat <- read.csv("Code/snailkite counts 1997_2025.csv")
+head(rawdat, 12) # first 12 rows
+tail(rawdat, 12) # last 12 rows
+```
+
+We can extract information from this dataset to be organized according to the modeling requirements:
+
+```{r data values}
+names.rawdat <- names(rawdat)
+deme.names <- c("EAST","EVER","KRV","OKEE","PP","SJM","OTHER" )
+cols.with.counts <- match(deme.names, names.rawdat)
+
+years <- unique(rawdat$year)
+nyears <- length(years)
+year.col <- which(names.rawdat=="year",arr.in=TRUE)
+```
+
+We are using a simple time scale from 0 to 28 `tt`, but we can use the 'years' vector above to do the plots. 
+```{r time vector}
+tt <- years - years[1]
+```
+
+We can also organize the number of surveys
+```{r list of surveys}
+# List the survey numbers:
+surv.num <- unique(rawdat$survey_num)
+```
+
+We can save the reorganized data in a list of three matrices, one per survey (Surveys 4, 5, and 6 are `S4mat`, `S5mat`, and `S6mat`, respectively). We can also extract the NA presence in a list of three matrices (`NAS.list <- list(NA4mat = S4mat, NA5mat=S5mat, NA6mat=S6mat)`).
+
+```{r empty lists of matrices to reorganize data}
+S4mat <- S5mat <- S6mat <- matrix(0, nrow=7, ncol=nyears)
+
+Counts.list <- list(S4mat = S4mat, S5mat=S5mat, S6mat=S6mat)
+NAS.list  <- list(NA4mat = S4mat, NA5mat=S5mat, NA6mat=S6mat)
+short.inds.list <- list()
+```
+
+And finally, we can iterativelly for each of the three surveys (`i in 1:3`) fill the matrices in the empty lists. First we will use the survey number to locate our survey of interest (`surv.num[(i+3)]`). Then, we ask the row number of the surveys within the `rawdat` dataset. We extract the rows for each survey in each region or subpopulation, and transpose this subset `t()`. The columns of this transposed subset correspond to the time series vector `tt` (because is only one of the surveys), so from 0 to 28 (29 years). This matrix is saved in `Counts.lists`. Then we identify the years with NA for each supbopulation, and save them in `NAS.list`. Finally, for each population (6 + "OTHER"), we save the counts with NAs.
+```{r}
+for(i in 1:3){
+  
+  SN <- surv.num[(i+3)]
+  
+  ith.rows   <- which(rawdat$survey_num==SN, arr.ind=TRUE)
+  
+  #ith.datmat <- rawdat[ith.rows, c(year.col,cols.with.counts)]
+  ith.datmat <- t(rawdat[ith.rows, cols.with.counts])
+  colnames(ith.datmat) <- tt
+  
+  Counts.list[[i]] <- ith.datmat
+  
+  ith.isnamat <- 1-is.na(ith.datmat)
+  NAS.list[[i]] <- ith.isnamat
+  
+  ith.shortind.list <- list()
+  for(j in 1:7){
+    
+    ith.shortind.list[[j]] <- which(ith.isnamat[j,]==1,arr.ind=TRUE)
+    
+  }
+  names(ith.shortind.list) <- deme.names
+  short.inds.list[[i]] <- ith.shortind.list 
+    
+}
+names(short.inds.list) <- c("short.inds4","short.inds5", "short.inds6")
+```
+
+
+Now create the individual data matrices with the surveys for 28 years
+```{r}
+S4mat <- Counts.list$S4mat[1:6,1:28] # Cut the last time step: no data anywhere
+S5mat <- Counts.list$S5mat[1:6,1:28]
+S6mat <- Counts.list$S6mat[1:6,1:28]
+
+NA4mat <- NAS.list$NA4mat[1:6,1:28]
+NA5mat <- NAS.list$NA5mat[1:6,1:28]
+NA6mat <- NAS.list$NA6mat[1:6,1:28]
+```
+
+
+Now, we can bring the distance between regions, using the centroid and distance from the edge of a convex polygon of the historical geolocation of nests in each region. The data was provided in meters, but it could be convenient numerically to convert it to kilometers. In addition, we assign the row names that matches with our survey matrices.
+```{r}
+# mean distance from the centroid 
+centr.dists <- read.csv("Code/Demes_centroid distance in meters.csv")[,-1]
+centr.dists <- as.matrix(centr.dists)/1000
+rownames(centr.dists) <- rownames(S4mat)
+centr.dists
+
+# minimal distance between edges of the convex polygon of nests
+min.condists <- read.csv("Code/Demes_minimum distance in meters.csv")[,-1]
+min.condists <- as.matrix(min.condists)/1000
+rownames(min.condists) <- rownames(S4mat)
+min.condists
+```
+
+The number of (sub)populations `p` is defined next.  This number will appear in most of our overall demes calculations
+```{r}
+p <- nrow(S4mat)
+
+```
+
+We next define the "dinvmat" choosing one of the distance matrices. This is the inverse matrix of distances, because in our model, the effect of one region on the growth rate of another region will be made inversely proportional to their mutual geographical distance.
+```{r}
+dmat <- centr.dists 
+dinvmat <- (dmat/dmat^2)  
+diag(dinvmat) <- rep(0,p)
+dinvmat
+```
+
+Finally, we import the matrix of detectability estimates over the years:
+
+```{r importing detectabilities}
+
+detectabilities <- read.csv("Code/detectability.csv")
+
+phats <- detectabilities[-(1:4),1]
+
+```
+## Model and data cloning ML fit:
+
+We now write down the JAGS model to fit the Allee effects model above:
+
+
+```{r JAGS model, eval=FALSE}
+
+Allee.SRicker.Sim <- function(k,alpha,b,psi,theta,no,len){
+	# Note:  b>0 because I have a '-' here:exp(a-b*nim1)
+	popvec <- rep(0,len)
+	popvec[1] <- no
+	for(i in 2:len){
+		nim1  <- popvec[(i-1)] 
+		Lam <- rgamma(n=1,shape=k,rate=alpha)
+		mean.pois <- Lam*nim1*exp(-b*nim1 - psi*theta/(nim1+theta)) 
+		popvec[i] <- rpois(n=1,lambda=mean.pois)		
+	}
+	return(popvec)	
+}
+
+
+SRAMOD.ONEDEME <- function(){
+  
+  lk ~ dnorm(2,1.6)
+  k <- exp(lk)
+  lalpha ~ dnorm(1,1.6)
+  alpha <- exp(lalpha)
+  
+  lb ~ dnorm(-5.8, 1.6)
+  b <- exp(b)
+  
+  psi ~ dunif(0,1)
+  theta ~ dunif(0,80)
+  
+  # dgamma(r=k,lambda=alpha)
+  
+}
+
+
+```

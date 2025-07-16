@@ -335,11 +335,12 @@ www_filt_df |>
   ggplot(aes(x = date, y = center_water, color = wet.reg)) +
   facet_wrap(~region, scales = "free_y") +
   geom_point(alpha = 0.5)+
+  scale_color_manual(values=met.brewer("Signac",n = 30)) +
+  scale_fill_manual(values=met.brewer("Signac"),n = 30) +
   labs(title = "Data not imputed",
        y = "Relative water (stage)")+
   theme_classic()+
-  theme(legend.text = element_text(size = 5))+
-  guides(color = guide_legend(override.aes = list(size = 0.5)))
+  theme(legend.position = "none")
 
 www_filt_df |>
   mutate(wet.reg = paste0(region, "_", wetland)) |>
@@ -349,9 +350,10 @@ www_filt_df |>
   geom_point(alpha = 0.05)+
   labs(title = "Data imputed (line)",
        y = "Relative water (stage)")+
+  scale_color_manual(values=met.brewer("Signac",n = 30)) +
+  scale_fill_manual(values=met.brewer("Signac"),n = 30) +
   theme_classic()+
-  theme(legend.text = element_text(size = 5))+
-  guides(color = guide_legend(override.aes = list(size = 0.5)))
+  theme(legend.position = "none")
 
 ```
 
@@ -867,10 +869,10 @@ kalman_wide$wetland <- factor(kalman_wide$wetland,
                                         ))
 
 # Plot using ggplot2
-ggplot(kalman_wide, aes(x = time, y = `50%`, 
+Wetland_water_detectp <- ggplot(kalman_wide, aes(x = time, y = `50%`, 
                         color = factor(region), 
                         fill = factor(region))) +
-  facet_wrap(~wetland, scales = "free_y", ncol = 2) +
+  facet_wrap(~wetland, scales = "free_y", ncol = 3) +
   geom_line() +
   geom_ribbon(aes(ymin = `2.5%`, ymax = `97.5%`), 
               alpha = 0.2, color = NA) +
@@ -887,11 +889,13 @@ ggplot(kalman_wide, aes(x = time, y = `50%`,
   scale_fill_manual(values=met.brewer("Homer2", 6)) +
   theme_minimal() +
   theme(legend.position = "inside",
-        legend.position.inside = c(0.75,0.05),
-        legend.direction = "horizontal")
+        legend.position.inside = c(0.85,0.1),
+        legend.direction = "horizontal",
+        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))
 
-ggsave(filename = "Wetland_water_detectp.pdf",dpi = 300,
-       width = 160, height = 230, units = "mm")
+ggsave(Wetland_water_detectp, filename = "Wetland_water_detectp.jpg",dpi = 300,
+       width = 230, height = 170, units = "mm")
 ```
+![Dynamic population of snail kites for 11 wetlands in 6 regions of Florida](Wetland_water_detectp.jpg)<br>
 
-In this new plot, the open points represent three surveys per year (replicates): down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6. This still do not include the extra parameter for detectability.
+In this plot, the open points represent three surveys per year: down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6. This dynamic includes the extra parameter for detectability and the influence of relative water sage.

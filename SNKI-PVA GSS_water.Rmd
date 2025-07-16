@@ -14,6 +14,7 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Packages and functions
 First, let's load the packages in `R` needed to run this code
 
 ```{r, message=FALSE}

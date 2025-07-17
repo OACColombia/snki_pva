@@ -507,7 +507,7 @@ for(i in 1:3){
 
 The model in full matrix format including water is:
 $$
-\mathbf{X}_{t+1} = \mathbf{a} + \beta\mathbf{W}_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
+\mathbf{X}_{t+1} = \mathbf{a} + \beta\mathbf{W}^2_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
 $$
 
 and the State-space model is completed by including the observaiton process, as a Poisson error with detection probability:
@@ -889,7 +889,7 @@ Wetland_water_detectp <- ggplot(kalman_wide, aes(x = time, y = `50%`,
     ) +
   scale_color_manual(values=met.brewer("Homer2", 6)) +
   scale_fill_manual(values=met.brewer("Homer2", 6)) +
-  theme_minimal() +
+  theme_classic() +
   theme(legend.position = "inside",
         legend.position.inside = c(0.85,0.1),
         legend.direction = "horizontal",
@@ -908,12 +908,12 @@ In this plot, the open points represent three surveys per year: down-facing tria
 
 The relationship of change in growth rate in response to Water (centered) by a quadratic effect can be showed by the standardized growth rate changes:
 $$
-\Delta_{std}\text{Growth rate} = \frac{\mathbf{A}+\mathbf{B}\hat{\mu}-(\mathbf{A}+\mathbf{B}\hat{\mu}-\hat{\beta}\text{W})}{\mathbf{A}+\mathbf{B}\hat{\mu}} 
+\Delta_{std}\text{Growth rate} = \frac{\mathbf{A}+\mathbf{B}\hat{\mu}-(\mathbf{A}+\mathbf{B}\hat{\mu}-\hat{\beta}\text{W}^2)}{\mathbf{A}+\mathbf{B}\hat{\mu}} 
 $$
 
 which is reduced to 
 $$
-\Delta_{std}\text{Growth rate} = \frac{\hat{\beta}\text{W}}{\mathbf{A}+\mathbf{B}\hat{\mu}} 
+\Delta_{std}\text{Growth rate} = \frac{\hat{\beta}\text{W}^2}{\mathbf{A}+\mathbf{B}\hat{\mu}} 
 $$
 
 ```{r}
@@ -938,7 +938,7 @@ for (i in 1:11){
   std.gr.mat[,i] <- (beta.4kalman * W.sim.sqr) / (std.gr[i])
 }
 
-plot(W.sim, std.gr.mat[,1], ylab = "Standardized change in growth change", xlab = "Centered water level")
+plot(W.sim, std.gr.mat[,1], ylab = "Standardized change in growth rate", xlab = "Centered water level")
 points(W.sim, std.gr.mat[,2], col = "blue")
 points(W.sim, std.gr.mat[,11], col = "red")
 
@@ -1104,7 +1104,7 @@ change.water <- ggplot(probs.change.df.long,
   labs(color = "",
        fill = "",
        x = expression(e^mu))+
-  theme_classic()+
+  theme_bw()+
   theme(legend.position = "inside",
         legend.position.inside = c(0.85,0.1),
         legend.direction = "horizontal",

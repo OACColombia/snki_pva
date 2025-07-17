@@ -796,7 +796,7 @@ Kalman.quants.w <- apply(Xkalman.w, 2, FUN=function(x){quantile(x, probs=c(0.025
 
 ```
 
-Converting the matrix form to a dataframe and extracting the values
+Converting the matrix form to a data frame and extracting the values
 
 ```{r dataframe adjustment}
 kalman_df_w <- as.data.frame(Kalman.quants.w) |>
@@ -921,11 +921,11 @@ $$
 std.gr <- avec4kalman + B %*% muvec4kalman 
 
 # Get a range of Water level (centered) for plotting
-W.sim = rnorm(10000, mean = mean(W), sd = sd(W))
+W.sim = seq(min(W),max(W),by = 0.01)
 W.sim.sqr = W.sim^2
 
 # growth rate per population
-W.gr.mat <- matrix(0,nrow = 10000, ncol = 11)
+W.gr.mat <- matrix(0,nrow = length(W.sim), ncol = 11)
 for (i in 1:11){  
   W.gr.mat[,i] <- std.gr[i] + beta.4kalman * W.sim.sqr
 }
@@ -933,7 +933,7 @@ for (i in 1:11){
 # standardize growth rate changes per population
 # (A + BX - (A + BX - ßW)) / (A + BX)
 # ßW/(A+BX) # fraction of reduction in growth rate * 100 is % reduction of gr
-std.gr.mat <- matrix(0, nrow = 10000, ncol = 11)
+std.gr.mat <- matrix(0, nrow = length(W.sim), ncol = 11)
 for (i in 1:11){
   std.gr.mat[,i] <- (beta.4kalman * W.sim.sqr) / (std.gr[i])
 }
@@ -971,7 +971,7 @@ std.gr.df |>
              y = Std.gr.change, 
              color = Wetland)) +
   facet_wrap(~Region, scale = "free_y") +
-  geom_point(shape = 21, alpha = 0.5)+
+  geom_line()+
   scale_color_manual(values=met.brewer("Signac",n = 11)) +
   scale_fill_manual(values=met.brewer("Signac",n = 11)) +
   labs(x = "Relative water (stage)",

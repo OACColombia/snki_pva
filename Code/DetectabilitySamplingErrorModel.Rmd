@@ -265,7 +265,7 @@ dinvmat
 
 ## Model and data cloning ML fit:
 
-Above, we mentioned that we would incorporate the effect of the populatin $j$ on the growth rate of the population $i$ as $b_{ij} = \frac{m}{d_{ij}}, i\neq j$, where $d_{ij}$ is the distance between these two regions. We also mentioned that $m$ could be interpreted as the migration probability out of a region, if that region is only 1 spatial unit away from another region.  This model formulation can be problematic or unrealistic because it automatically sets symmetric effects on the growth rate of one deme on the other.  One alternative is to specify as many $b_{ij}$ parameters as $p(p-1)$ to take in consideration asymmetric effects of migration.  Another option that avoids the specification of $p(p-1)$ extra parameters but still allows for asymmetric effects is to shape the $\mathcal{B}$ matrix as a stepping-stone model where two different $m$ values are specified in the following way.  For every deme, there is one other deme that is the closest to it. Let the closest deme to the $i^{\text{th}}$ deme be labelled with the letter $j$.  Let all other demes be labeled with the letter $k$.  Then, specify  the $b_{ij}$ element of the $i^{\text{th}}$ row of the matrix $\mathcal{B}$ as $\frac{m_\text{close}}{d_{ij}}$ and the five other elements $b_{ik}$ in that row as $\frac{m_\text{far}}{d_{ik}}$.  Then, under this model, the growth rate of every deme becomes the recipient of two different types of effect:  the effect of the closest deme to it and the effect of all the other demes to it.  This model embodies the idea of a stepping-stone or nearest neighbor effects.  The model can be fitted via Maximum Likelihood and the Data Cloning algorithm to retrieve the MLEs (Lele et al 2007, Ponciano et al 2009, Lele et al 2010, Ponciano et al 2012). This algorithm basically uses Bayesian statistics and the statistical theory from Lele et al 2010 to retrieve the ML estimates.  Sampling from the target cloned posterior distribution is achieved through MCMC. Using MCMC algorithms (through JAGS), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Ponciano *et al.* 2009](https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/08-0967.1) , [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html),
+Above, we mentioned that we would incorporate the effect of the population $j$ on the growth rate of the population $i$ as $b_{ij} = \frac{m}{d_{ij}}, i\neq j$, where $d_{ij}$ is the distance between these two regions. We also mentioned that $m$ could be interpreted as the migration probability out of a region, if that region is only 1 spatial unit away from another region.  This model formulation can be problematic or unrealistic because it automatically sets symmetric effects on the growth rate of one deme on the other.  One alternative is to specify as many $b_{ij}$ parameters as $p(p-1)$ to take in consideration asymmetric effects of migration.  Another option that avoids the specification of $p(p-1)$ extra parameters but still allows for asymmetric effects is to shape the $\mathcal{B}$ matrix as a stepping-stone model where two different $m$ values are specified in the following way.  For every deme, there is one other deme that is the closest to it. Let the closest deme to the $i^{\text{th}}$ deme be labelled with the letter $j$.  Let all other demes be labeled with the letter $k$.  Then, specify  the $b_{ij}$ element of the $i^{\text{th}}$ row of the matrix $\mathcal{B}$ as $\frac{m_\text{close}}{d_{ij}}$ and the five other elements $b_{ik}$ in that row as $\frac{m_\text{far}}{d_{ik}}$.  Then, under this model, the growth rate of every deme becomes the recipient of two different types of effect:  the effect of the closest deme to it and the effect of all the other demes to it.  This model embodies the idea of a stepping-stone or nearest neighbor effects.  The model can be fitted via Maximum Likelihood and the Data Cloning algorithm to retrieve the MLEs (Lele et al 2007, Ponciano et al 2009, Lele et al 2010, Ponciano et al 2012). This algorithm basically uses Bayesian statistics and the statistical theory from Lele et al 2010 to retrieve the ML estimates.  Sampling from the target cloned posterior distribution is achieved through MCMC. Using MCMC algorithms (through JAGS), we can compute the Maximum Likelihood Estimators (MLEs) for the parameters (see [Lele *et al.* 2007](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1461-0248.2007.01047.x), [Ponciano *et al.* 2009](https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/08-0967.1) , [Lele *et al.* 2010](https://www.math.ualberta.ca/~slele/publications/Lele%20et%20al%20GLMM%202010.pdf), [Sólymos 2010](https://journal.r-project.org/archive/2010/RJ-2010-011/index.html),
 [Ponciano *et al.* 2012](https://academic.oup.com/sysbio/article/61/6/955/1665068)).   The process of estimation starts by specifying the model for JAGS:
 
 
@@ -462,7 +462,7 @@ data4kalman <- list(N4=S4mat,
                     sigmasq = sigsq4kalman, 
                     B=B
 )
-str(data4kalman)
+#str(data4kalman)
 ```
 
 ```{r echo=TRUE, eval=TRUE}
@@ -571,8 +571,9 @@ polygon(c(1:len,rev(1:len)), c(X6s[1,],rev(X6s[3,])),
 points(1:len, X6s[2,],pch=16, type="b", col=cool.palette[6])
 points(1:len, log(S4mat[6,]),pch=16, type="b", col="black")
 
+#![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling.JPEG)<br>
 ```
-![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling.JPEG)<br>
+
 
 
 Just to check, how does the estimate of the total population size from Mark-recapture compares to the sum of the exponential of the Kalman estimates?
@@ -605,13 +606,12 @@ points(1:len, NsMLE,pch=16, type="b", col=cool.palette[1])
 ### Mark-recapture 
 
 mark.dat <- read.csv("Code/2024_1997_popsize_ci.csv", header=TRUE)
-
 names(mark.dat)
 
 plot(mark.dat$Nsuper,NsMLE, pch=16, xlim=c(0,3500), ylim=c(0,3500))
 abline(a=0,b=1)
 
-write.csv(cbind(NsLCL,NsMLE,NsUCL), file="Code/TimeSeriesMLEs.csv")
+#write.csv(cbind(NsLCL,NsMLE,NsUCL), file="Code/TimeSeriesMLEs.csv")
 
 
 ```
@@ -627,8 +627,8 @@ MGSS_DC4.0 <- function(){
   #mig ~ dbeta(2,2)
   mig.near ~ dnorm(0,1)
   mig.far ~ dnorm(0,1)
-  ldetectp ~ dnorm(0,1)
-  detectp <- 1/(1+exp(-ldetectp))
+  #ldetectp ~ dnorm(0,1)
+  #detectp <- 1/(1+exp(-ldetectp))
   
   sigmasq <- exp(lsigmasq)  
   for(pp in 1:p){
@@ -654,17 +654,17 @@ MGSS_DC4.0 <- function(){
     ##### ---- Likelihood (data cloning) ---- #####
     X[1:p,1,k] ~ dmnorm(muvec, Sigma) #muvec + beta*water[,1]
     for(h in 1:p){
-      N4[h,1,k] ~ dpois(detectp*exp(X[h,1,k]))
-      N5[h,1,k] ~ dpois(detectp*exp(X[h,1,k]))      
-      N6[h,1,k] ~ dpois(detectp*exp(X[h,1,k]))
+      N4[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))
     }
     for( i in 2:qp1){ 
       ## Process error
       X[1:p,i,k]  ~ dmnorm(A[1:p] + B[1:p,1:p]%*%X[1:p,(i-1),k], Sigma); #A[1:p] + beta*water[,1] + B[...]
       for(j in 1:p){
-        N4[j,i,k]  ~ dpois(detectp*exp(X[j,i,k])) ## Observation error
-        N5[j,i,k]  ~ dpois(detectp*exp(X[j,i,k])) ## Observation error        
-        N6[j,i,k]  ~ dpois(detectp*exp(X[j,i,k])) ## Observation error        
+        N4[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error        
       }
     }
   }  
@@ -672,6 +672,17 @@ MGSS_DC4.0 <- function(){
 
 
 ```
+
+Next, we import the matrix of detectability estimates over the years:
+
+```{r importing detectabilities}
+
+detectabilities <- read.csv("Code/detectability.csv")
+
+phats <- detectabilities[-(1:4),1]
+
+```
+
 And getting the data to do the data cloning:
 
 ```{r echo=TRUE, eval=TRUE}
@@ -688,30 +699,32 @@ data4dclone <- list(K=1,
                     Ip =  diag(p),
                     dinvmat = dinvmat,
                     step.stone = matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
-                                        nrow=6,ncol=2,byrow=TRUE)
-)
+                                        nrow=6,ncol=2,byrow=TRUE),
+                    detectp=phats
+                    )
 ```
 
 Finally, we set up the number of clones, the MCMC chains, which parameters to sample, and fit the data cloning model (it takes some time, so it is in `eval = FALSE` at this moment).
 ```{r echo=TRUE, eval=FALSE}
-cl.seq <- c(18);
+#cl.seq <- c(1,4,8,16);
+cl.seq <- c(20)
 n.iter<-100000;n.adapt<-50000;n.update<-100;thin<-10;n.chains<-3;
 
-out.parms <- c("muvec", "cvec", "mig.near", "mig.far", "sigmasq", "A", "detectp")
+out.parms <- c("muvec", "cvec", "mig.near", "mig.far", "sigmasq", "A")
 mgssdclone2<- dc.fit(data4dclone, 
                      params=out.parms, 
                      model=MGSS_DC4.0, 
                      n.clones=cl.seq,
                      multiply="K", 
                      unchanged = c("qp1","p","mupmean","muprec", 
-                      "step.stone", "lthetamean","lthetaprec", "Ip","dinvmat"),
+                      "step.stone", "lthetamean","lthetaprec", "Ip","dinvmat","detectp"),
                      n.chains = n.chains, 
                      n.adapt=n.adapt, 
                      n.update=n.update,
                      n.iter = n.iter, 
                      thin=thin, 
                      inits=myinits) 
-#saveRDS(mgssdclone2, "Code/mgssdclone2.RDS")
+saveRDS(mgssdclone2, "Code/mgssdclone2.RDS")
 
 ```
 
@@ -731,11 +744,10 @@ mles4kalman2 <- mlescentrdist2[,1]
 mles4kalman2
 avec4kalman2 <- mles4kalman2[1:6]
 cvec4kalman2 <- mles4kalman2[7:12]
-detectp4kalman2 <- mles4kalman2[13] ### Check this
-mig.far4kalman2  <- mles4kalman2[14]
-mig.near4kalman2 <- mles4kalman2[15]
-muvec4kalman2 <- mles4kalman2[16:21]
-sigsq4kalman2 <- mles4kalman2[22]
+mig.far4kalman2  <- mles4kalman2[13]
+mig.near4kalman2 <- mles4kalman2[14]
+muvec4kalman2 <- mles4kalman2[15:20]
+sigsq4kalman2 <- mles4kalman2[21]
 # Retrieve the detect probability now as well
 
 ```
@@ -750,17 +762,17 @@ MGSS_KALMAN3.0 <- function(){
   ##### ---- Likelihood ---- #####
   X[1:p,1] ~ dmnorm(muvec, Sigma)
   for(h in 1:p){
-    N4[h,1] ~ dpois(detectp*exp(X[h,1]))
-    N5[h,1] ~ dpois(detectp*exp(X[h,1]))    
-    N6[h,1] ~ dpois(detectp*exp(X[h,1]))    
+    N4[h,1] ~ dpois(detectp[1]*exp(X[h,1]))
+    N5[h,1] ~ dpois(detectp[1]*exp(X[h,1]))    
+    N6[h,1] ~ dpois(detectp[1]*exp(X[h,1]))    
   }
   for( i in 2:qp1){ 
     ## Process error
     X[1:p,i]  ~ dmnorm(A + B%*%X[1:p,(i-1)], Sigma); 
     for(j in 1:p){
-      N4[j,i]  ~ dpois(detectp*exp(X[j,i])) ## Observation error
-      N5[j,i]  ~ dpois(detectp*exp(X[j,i])) ## Observation error      
-      N6[j,i]  ~ dpois(detectp*exp(X[j,i])) ## Observation error
+      N4[j,i]  ~ dpois(detectp[i]*exp(X[j,i])) ## Observation error
+      N5[j,i]  ~ dpois(detectp[i]*exp(X[j,i])) ## Observation error      
+      N6[j,i]  ~ dpois(detectp[i]*exp(X[j,i])) ## Observation error
     }
   }
 
@@ -804,9 +816,9 @@ data4kalman2 <- list(N4=S4mat,
                     muvec = muvec4kalman2,
                     sigmasq = sigsq4kalman2, 
                     B=B2,
-                    detectp = detectp4kalman2
+                    detectp = phats
 )
-str(data4kalman2)
+#str(data4kalman2)
 ```
 
 And finally set up and sample the Kalman estimates
@@ -922,9 +934,9 @@ polygon(c(1:len,rev(1:len)), c(X6s2[1,],rev(X6s2[3,])),
         col=scales::alpha(cool.palette[6],0.1), border=NA)
 points(1:len, X6s2[2,],pch=16, type="b", col=cool.palette[6])
 points(1:len, S4mat[6,],pch=16, type="b", col="black")
-
+#![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling-pdetect.JPEG)<br>
 ```
-![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling-pdetect.JPEG)<br>
+
 
 Just to check, how does the estimate of the total population size from Mark-recapture compares to the sum of the exponential of the Kalman estimates?
 
@@ -959,10 +971,365 @@ mark.dat <- read.csv("Code/2024_1997_popsize_ci.csv", header=TRUE)
 
 names(mark.dat)
 
-plot(mark.dat$Nsuper,NsMLE.2, pch=16, xlim=c(0,3500), ylim=c(0,3500))
+plot(mark.dat$Nsuper,NsMLE.2, pch=16, xlim=c(0,3500), ylim=c(0,3500),
+     xlab=c("Super Population size estimates using Mark-Recapture data"),
+     ylab="MLEs of the Breeding Population size with under-detection",
+     bty="l")
 abline(a=0,b=1)
 
 write.csv(cbind(NsLCL.2,NsMLE.2,NsUCL.2), file="Code/TimeSeriesMLEs-pdetect.csv")
 
+#save.image("Code/SamplingError.RData")
 
 ```
+# Population viability analysis: short, medium and long term projections per deme
+
+With the population dynamics model parameter estimates, we can now focus on building a function to compute the same probabilities for any value of a change in the stationary mean and any proportion of the past average population abundances `E.N`. 
+
+To do this, we now need to compute the year-wise cumulative probability of dropping below an arbitrarily low critical number. Starting at the current population size, this number tracks the probability that the population will drop below a critical number anytime between the present time and every subsequent year, for as many years we simulated the population forward in time.  Here we simulated only 10 years forward in time thus sticking with short-term forecasting. The critical abundance used in these simulations was conservatively set as 75\% the estimated mean of the stationary distribution for every deme. This quantity then becomes our standard population viability threshold for every deme in our simulations for this first part of the report.
+
+
+The deterministic breeding carrying capacities for each deme are given by exponentiating the vector of estimated means of the Normal stationary distribution in the log-scale:
+
+```{r eval=TRUE, echo=TRUE}
+ks <- exp(muvec4kalman2)
+names(ks) <- row.names(S4mat)
+print(ks)
+```
+
+In the population size scale, the mean of the abundances is given by the expected value `E.N` of the log-normal stationary distribution for every deme.  This value is bigger always than the deterministic carrying capacity. This expected value however, is not simply the exponentiated mean of the stationary distribution in the logarithmic scale (*i.e.* the deterministic carrying capacities). This expected value is computed easily since with the model ML estmates we can in turn estimate of the stationary variance for every deme using equation 17 in Ives et al 2003:
+
+```{r echo=TRUE, eval=TRUE}
+Ip <- diag(p)
+Sigma <- (1/sigsq4kalman2)*Ip
+
+Ipsq <- diag(p*p)
+vec.Vinf <- solve(Ipsq - kronecker(B,B))%*%as.vector(Sigma)
+Vinf <- matrix(vec.Vinf, nrow=p,ncol=p)
+Vars.inf <- diag(Vinf)
+names(Vars.inf) <- row.names(S4mat)
+
+E.Ns <- exp(muvec4kalman2 + Vars.inf/2)
+names(E.Ns) <- row.names(S4mat)
+print(E.Ns)
+
+```
+
+Next, we build a time series simulator, starting from a given initial value.  The function is primed with the estimated true, latent final log-abundances at each deme and the ML estimates of the model parameters. This time series simulator is needed because the probability of the breeding population size dropping below any threshold within a given time interval is computed as the proportion of simulated time series under the same conditions that fall under that same pre-set threshold. This simulator function is done in the log-scale to be able to take advantage of the fast random multivariate number generator:
+
+
+```{r echo=TRUE, eval=TRUE}
+
+MVX.sim <- function(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28]), 
+                    theta.list=
+                    list(p=p,
+                    Ip =  diag(p),
+                    muvec = muvec4kalman,
+                    sigmasq = sigsq4kalman, 
+                    B=B),
+                    nsteps=5,
+                    rnames = row.names(S4mat)){
+
+  p  <- theta.list$p
+  Ip <- theta.list$Ip
+  muvec <- theta.list$muvec
+  sigmasq <- theta.list$sigmasq
+  B <- theta.list$B
+  
+  A  <- (Ip - B)%*%muvec
+  Sigma <- (1/sigmasq)*Ip
+  
+  X <- matrix(0,nrow=p,ncol=nsteps)
+  X[1:p,1] <- randmvn(n=1,mu.vec=A+B%*%xo.vec, cov.mat=Sigma)
+  
+  for( i in 2:nsteps){ 
+    ## Process error
+    X[1:p,i] <- randmvn(n=1,mu.vec=A + B%*%X[1:p,(i-1)], cov.mat=Sigma)
+  }
+  
+  X <- cbind(xo.vec,X)
+  row.names(X) <- rnames
+  colnames(X) <- 0:nsteps
+  return(X)
+}
+
+```
+
+
+```{r echo=TRUE, eval=FALSE}
+
+p.ext <- function(pct.change=0.9, muvec4kalman=muvec4kalman2, xinits=
+                    c(X1s2[2,28],X2s2[2,28],X3s2[2,28],X4s2[2,28],X5s2[2,28],X6s2[2,28]),p=p,
+                  sigsq4kalman=sigsq4kalman2,B=B2,S4mat=S4mat,E.Ns=E.Ns,
+                  nyears.fwd=10, nsims=100000){
+
+  newmus <- muvec4kalman*pct.change
+  sims.list50pct <- list()
+
+  for(i in 1:p){
+    sims.list50pct[[i]] <- matrix(0,nrow=nsims,ncol=nyears.fwd+1)
+  }
+  names(sims.list50pct) <- row.names(S4mat)
+  for(i in 1:nsims){
+  
+    ith.sim <- MVX.sim(xo.vec = xinits, 
+                    theta.list=
+                    list(p=p,
+                      Ip =  diag(p),
+                      muvec = newmus,
+                      sigmasq = sigsq4kalman, 
+                      B=B),
+                    nsteps=10,
+                    rnames = row.names(S4mat))
+  
+    sims.list50pct[[1]][i,] <- ith.sim[1,] 
+    sims.list50pct[[2]][i,] <- ith.sim[2,] 
+    sims.list50pct[[3]][i,] <- ith.sim[3,] 
+    sims.list50pct[[4]][i,] <- ith.sim[4,] 
+    sims.list50pct[[5]][i,] <- ith.sim[5,] 
+    sims.list50pct[[6]][i,] <- ith.sim[6,] 
+  }
+
+  ncrit <- E.Ns*0.75 # change here to a desired number
+  lcrit <- log(ncrit)
+  nsteps <- nyears.fwd
+  probs.drop50pct <- matrix(0, nrow=6,ncol=nsteps)
+  rownames(probs.drop50pct) <- row.names(S4mat)
+  for(i in 1:6){
+  
+    simsmat <- sims.list50pct[[i]] # drop the initial log pop size
+  
+    for(j in 2:(nsteps+1)){
+    
+      jthsubmat <- simsmat[,1:j]
+    
+      probs.drop50pct[i,(j-1)] <- sum(jthsubmat<lcrit[i])/(nrow(jthsubmat)*ncol(jthsubmat))
+    }
+  }
+  return(probs.drop50pct)
+}
+
+
+```
+
+And so now we compute the probabilities of dropping below `E.N` sometime in the next $1,2,3,\dots,10$ years assuming a percent change in the growth rate from $+50\%$ to $-50\%$, by steps of $10\%$:
+
+```{r Proportional Changes calculator, eval=FALSE} 
+probs.change.list <- list()
+changes <- seq(1.5,0.5, by=-0.1)
+nchanges <- length(changes)
+
+for(i in 1:nchanges){
+  
+  probs.change.list[[i]] <- p.ext(pct.change=changes[i], muvec4kalman=muvec4kalman2, xinits=
+                    c(X1s2[2,28],X2s2[2,28],X3s2[2,28],X4s2[2,28],X5s2[2,28],X6s2[2,28]),p=p,
+                  sigsq4kalman=sigsq4kalman2,B=B2,S4mat=S4mat,E.Ns=E.Ns,
+                  nyears.fwd=10, nsims=100000)
+
+}
+names(probs.change.list) <- as.character(changes)
+
+print(probs.change.list)
+
+
+saveRDS(probs.change.list, "Code/probschangelist.RDS")
+
+```
+
+Once these probabilities are computed we are ready to plot them in a single graph:
+
+```{r probs.dropping plot}
+probs.change.list <- readRDS("Code/probschangelist.RDS")
+changes <- seq(1.5,0.5, by=-0.1)
+nchanges <- length(changes)
+
+cool.palette2 <- as.vector(met.brewer("Morgenstern",nchanges)) #
+cool.palette2 <- rev(cool.palette2)
+nsteps <- ncol(probs.change.list[[1]])
+
+leg.lab <- paste0("x",changes)
+cex.leg <- 0.8
+
+par(mfrow=c(2,3),oma=c(5,5,4,1), mar=c(2,2,2,1))
+
+#par(mfrow=c(1,1))
+plot(1:nsteps,probs.change.list[[1]][1,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[1])
+for(i in 2:nchanges){  
+  points(1:nsteps,probs.change.list[[i]][1,], type="b",  lwd=2, col=cool.palette2[i])
+}
+
+#legend("topleft", legend=leg.lab, lty=rep(1,nchanges),lwd=rep(2,nchanges),
+#       col=cool.palette2, bty="n",cex=cex.leg)
+
+
+plot(1:nsteps,probs.change.list[[1]][2,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[2])
+for(i in 2:nchanges){  
+  points(1:nsteps,probs.change.list[[i]][2,], type="b",  lwd=2, col=cool.palette2[i])
+}
+
+#legend("bottomleft", legend=leg.lab, lty=rep(1,nchanges),lwd=rep(2,nchanges),
+#       col=cool.palette2, bty="n",cex=cex.leg)
+
+
+plot(1:nsteps,probs.change.list[[1]][3,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[3])
+for(i in 2:nchanges){  
+  points(1:nsteps,probs.change.list[[i]][3,], type="b",  lwd=2, col=cool.palette2[i])
+}
+
+#legend("topleft", legend=leg.lab, lty=rep(1,nchanges),lwd=rep(2,nchanges),
+#       col=cool.palette2, bty="n",cex=cex.leg)
+
+
+plot(1:nsteps,probs.change.list[[1]][4,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[4])
+for(i in 2:nchanges){  
+  points(1:nsteps,probs.change.list[[i]][4,], type="b",  lwd=2, col=cool.palette2[i])
+}
+
+#legend("topleft", legend=leg.lab, lty=rep(1,nchanges),lwd=rep(2,nchanges),
+#       col=cool.palette2, bty="n",cex=cex.leg)
+
+
+plot(1:nsteps,probs.change.list[[1]][5,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[5])
+for(i in 2:nchanges){  
+  points(1:nsteps,probs.change.list[[i]][5,], type="b",  lwd=2, col=cool.palette2[i])
+}
+
+#legend("topleft", legend=leg.lab, lty=rep(1,nchanges),lwd=rep(2,nchanges),
+#       col=cool.palette2, bty="n",cex=cex.leg)
+
+
+
+plot(1:nsteps,probs.change.list[[1]][6,], type="b", col=cool.palette[1], lwd=2, ylim=c(0,1.1), bty="l",
+     xlab="", ylab="", cex.lab=1.25,
+     main=row.names(S4mat)[6])
+for(i in 2:nchanges){  
+  points(1:nsteps,probs.change.list[[i]][6,], type="b",  lwd=2, col=cool.palette2[i])
+}
+
+#legend("topleft", legend=leg.lab, lty=rep(1,nchanges),lwd=rep(2,nchanges),
+#       col=cool.palette2, bty="n",cex=cex.leg)
+
+
+mtext(text="Pr. of Falling Under Conservation Threshold", side=2, outer=TRUE, cex=1.25,line=1)
+mtext(text="Years ahead of present", side=1, outer=TRUE, cex=1.15,line=1)
+```
+
+![Magnitude of change](legendX.PNG)
+
+```{r echo=FALSE,eval=FALSE}
+par(mfrow=c(1,1),oma=c(0,0,0,0), mar=c(1,1,1,1))
+plot(0,0, type="n", axes=FALSE, xlab="",ylab="", main="", xlim=c(-1,1), ylim=c(-1,1))
+legend(-0.95,0, legend=leg.lab, pch=rep(16,nchanges),
+       col=cool.palette2, bty="n",cex=1.5, horiz=TRUE)
+```
+
+
+## Proportion of time the population process is predicted to be below past population means:
+
+Another way to look at the effects of the drop in the growth rate is to put to good use the concept of the stationary distribution.  As mentioned above, the area under that curve within a given interval of population size gives the long term fraction of time the stochastic population process will spend within that interval.  Thus, the cdf of the stationary distribution can be used to directly compute the probability that the population size will be found below a given threshold, after accounting for environmental variability and the subsequent year-to-year stochastic changes in the growth rate of the population.  Therefore, in what follows we recompute the mean and variance of the stationary distribution for an array of percent drops in the stationary mean, just as above but then we compute directly the long run percent of time spent below the threshold, and proceed to plot these probabilities for all populations and for the entire array of percent drop in the growth rate. 
+
+```{r echo=TRUE, eval=TRUE}
+
+
+pct.red <- changes
+Ip <- diag(p)
+muvec <- muvec4kalman2
+Sigma <- (1/sigsq4kalman2)*Ip
+
+Ipsq <- diag(p*p)
+vec.Vinf <- solve(Ipsq - kronecker(B2,B2))%*%as.vector(Sigma)
+Vinf <- matrix(vec.Vinf, nrow=p,ncol=p)
+Vars.inf <- diag(Vinf)
+names(Vars.inf) <- row.names(S4mat)
+
+perc.redmat <- matrix(0, nrow=p,ncol=nchanges)
+rownames(perc.redmat) <- row.names(S4mat)
+colnames(perc.redmat) <- pct.red
+for(i in 1:nchanges){
+  perc.redmat[,i] <- plnorm(q=E.Ns*0.75, meanlog=muvec4kalman2*pct.red[i], sdlog=sqrt(Vars.inf))
+}
+
+print(perc.redmat)
+
+
+pct.red2 <- (1-pct.red)*100
+par(mfrow=c(1,1),oma=c(2,2,1,1), mar=c(4,4,4,1))
+plot(25,0.8,type="n",xlab="% reduction in growth rate",main="Long term proportion of time spent <75% of past pop. average", ylim=c(0.65,1), xlim=c(10,55), bty="l", ylab="Proportion (stationary distribution cdf)")
+for(i in 1:p){
+  points(pct.red2,perc.redmat[i,], lty=1, lwd=2,type="b", col=cool.palette[i], xlab="", ylab="", main="")
+}
+
+legend("bottomright",legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n")
+
+#![Long term proportion of time spent under 75% of past population averages for each deme](TimeSpentUnder75pct-pdetect.JPEG)<br>
+
+```
+
+
+And we can do the same but computing the proportion of time spent under 50% of past population averages
+```{r echo=TRUE, eval=TRUE}
+perc.redmat50 <- matrix(0, nrow=p,ncol=nchanges)
+rownames(perc.redmat50) <- row.names(S4mat)
+colnames(perc.redmat50) <- pct.red
+for(i in 1:nchanges){
+  perc.redmat50[,i] <- plnorm(q=E.Ns*0.5, meanlog=muvec4kalman2*pct.red[i], sdlog=sqrt(Vars.inf))
+}
+
+print(perc.redmat50)
+
+
+pct.red2 <- (1-pct.red)*100
+par(mfrow=c(1,1),oma=c(2,2,1,1), mar=c(4,4,4,1))
+plot(25,0.6,type="n",xlab="% reduction in growth rate",main="Long term proportion of time spent <50% of past pop. average", ylim=c(0.5,1), xlim=c(10,55), bty="l", ylab="Proportion (stationary distribution cdf)")
+for(i in 1:p){
+  points(pct.red2,perc.redmat50[i,], lty=1, lwd=2,type="b", col=cool.palette[i], xlab="", ylab="", main="")
+}
+
+legend("bottomright",legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n")
+
+#![Long term proportion of time spent under 50% of past population averages for each deme](TimeSpentUnder50pct-pdetect.JPEG)<br> 
+```
+
+
+Taking the same approach we can ask what are the chances of the extreme event of the population size being under say one fourth of the past population mean for every deme:
+
+```{r echo=TRUE, eval=TRUE}
+perc.redmat25 <- matrix(0, nrow=p,ncol=nchanges)
+rownames(perc.redmat25) <- row.names(S4mat)
+colnames(perc.redmat25) <- pct.red
+for(i in 1:nchanges){
+  perc.redmat25[,i] <- plnorm(q=E.Ns*0.25, meanlog=muvec4kalman2*pct.red[i], sdlog=sqrt(Vars.inf))
+}
+
+print(perc.redmat25)
+
+
+par(oma=c(2,2,1,1), mar=c(4,4,4,1))
+plot(25,0.20,type="n",xlab="% reduction in growth rate",main="Long term proportion of time spent <25% of past pop. average", ylim=c(0.25,1), xlim=c(10,55), bty="l", ylab="Proportion (stationary distribution cdf)")
+for(i in 1:p){
+  points(pct.red2,perc.redmat25[i,], lty=1, lwd=2,type="b", col=cool.palette[i], xlab="", ylab="", main="")
+}
+
+legend("bottomright",legend=row.names(S4mat),lty=rep(1,6),lwd=rep(2,6),cex=1.15, col=cool.palette, bty="n")
+#![Long term proportion of time spent under 25% of past population averages for each deme](TimeSpendUnder25-pdetect.JPEG)<br>
+
+```
+
+
+And we save our work
+
+```{r eval=FALSE, echo=FALSE}
+save.image("SNKI-PVA2.0.RData")
+```
+
+

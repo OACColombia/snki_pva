@@ -796,7 +796,7 @@ Kalman.quants.w <- apply(Xkalman.w, 2, FUN=function(x){quantile(x, probs=c(0.025
 
 ```
 
-Converting the matrix form to a dataframe and extracting the values
+Converting the matrix form to a data frame and extracting the values
 
 ```{r dataframe adjustment}
 kalman_df_w <- as.data.frame(Kalman.quants.w) |>

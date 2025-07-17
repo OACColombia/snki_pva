@@ -3697,7 +3697,7 @@ saveRDS(kalman.mcmc.w, &quot;Code/Kalman_w_detect_OUSS.RDS&quot;)</code></pre>
 Xkalman.w &lt;-  do.call(rbind, kalman.mcmc.w)
 
 Kalman.quants.w &lt;- apply(Xkalman.w, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) </code></pre>
-<p>Converting the matrix form to a dataframe and extracting the values</p>
+<p>Converting the matrix form to a data frame and extracting the values</p>
 <pre class="r"><code>kalman_df_w &lt;- as.data.frame(Kalman.quants.w) |&gt;
   mutate(quantile = rownames(Kalman.quants.w)) |&gt;
   pivot_longer(-quantile, 

@@ -507,7 +507,7 @@ for(i in 1:3){
 
 The model in full matrix format including water is:
 $$
-\mathbf{X}_{t+1} = \mathbf{a} + \beta\mathbf{W}^2_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
+\mathbf{X}_{t+1} = \mathbf{A} + \beta\mathbf{W}^2_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
 $$
 
 and the State-space model is completed by including the observaiton process, as a Poisson error with detection probability:
@@ -740,7 +740,8 @@ B <- matrix(0,p,p)
 
 for(m in 1:p){
   for(n in 1:p){
-    B[m,n] <- ifelse((m==n),cvec4kalman[m],ifelse(
+    B[m,n] <- ifelse((m==n),cvec4kalman[m],
+                     ifelse(
       (m==step.stone[m,1])&&(n==step.stone[m,2]), 
       dinvmat[m,n]*mig.near4kalman,dinvmat[m,n]*mig.far4kalman)
     ) #
@@ -748,12 +749,12 @@ for(m in 1:p){
   }
 }
 
-print(B)
+print(B) # this is \mathcal{B}, because the diagonal is the `cvec4kalman` (intra-region strength of density dependence)
 
 data4kalman <- list(N4=S4mat,
                     N5=S5mat,
                     N6=S6mat,
-                    W = W,
+                    W = W^2,
                     qp1=ncol(S4mat), 
                     p=p,
                     detectp = detectp,
@@ -783,13 +784,13 @@ kalman.mcmc.w <- jags.fit(data4kalman,
                          n.update=n.update, 
                          n.iter = n.iter, 
                          thin=thin)
-saveRDS(kalman.mcmc.w, "Code/Kalman_w_detect_OUSS.RDS")
+saveRDS(kalman.mcmc.w, "Code/Kalman_w_quad_detect_OUSS.RDS")
 ```
 
 And then, bring back the data to see the population trajectories in each region.
 
 ```{r}
-kalman.mcmc.w <- readRDS("Code/Kalman_w_detect_OUSS.RDS")
+kalman.mcmc.w <- readRDS("Code/Kalman_w_quad_detect_OUSS.RDS")
 Xkalman.w <-  do.call(rbind, kalman.mcmc.w)
 
 Kalman.quants.w <- apply(Xkalman.w, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) 
@@ -906,47 +907,57 @@ In this plot, the open points represent three surveys per year: down-facing tria
 
 # How change in water affect growth rate at different populations?
 
-The relationship of change in growth rate in response to Water (centered) by a quadratic effect can be showed by the standardized growth rate changes:
+From the initial model
+
 $$
-\Delta_{std}\text{Growth rate} = \frac{\mathbf{A}+\mathbf{B}\hat{\mu}-(\mathbf{A}+\mathbf{B}\hat{\mu}-\hat{\beta}\text{W}^2)}{\mathbf{A}+\mathbf{B}\hat{\mu}} 
+\mathbf{X}_{t+1} = \mathbf{X}_t +\mathbf{A}+
+$$
+
+
+The relationship of change in growth rate in response to water can be showed by the difference of growth rate including the quadratic water effect ($\mathbf{A}+\mathbf{BX}_t+\hat{\beta}\text{W}^2_t$) and growth rate without including the water effect (the average growth rate; $\mathbf{A}+\mathbf{BX}_t$):
+$$
+\Delta_{\text{Growth rate}} = \frac{(\mathbf{A}+(\mathcal{B}-\mathbf{I})\mathbf{X}_t+\hat{\beta}\text{W}^2_t)-(\mathbf{A}+(\mathcal{B}-\mathbf{I})\mathbf{X}_t)}{\mathbf{A}+(\mathcal{B}-\mathbf{I})\mathbf{X}_t} 
 $$
 
 which is reduced to 
 $$
-\Delta_{std}\text{Growth rate} = \frac{\hat{\beta}\text{W}^2}{\mathbf{A}+\mathbf{B}\hat{\mu}} 
+\Delta_{std}\text{Growth rate} = \frac{\hat{\beta}\text{W}^2}{\mathbf{A}+\mathbf{BX}_t} 
 $$
+evaluated at $\mathbf{X}_t=\hat{\mu}$
 
 ```{r}
-# standard growth rate
-std.gr <- avec4kalman + B %*% muvec4kalman 
+# standardize growth rate changes per population
+# ((A + BX - ßW)-(A + BX)) / (A + BX)
+# ßW/(A+BX) # fraction of reduction in growth rate
+
+# standard growth rate (A+BX)
+avg.gr <- avec4kalman + (B-diag(p)) %*% muvec4kalman
 
 # Get a range of Water level (centered) for plotting
 W.sim = seq(min(W),max(W),by = 0.01)
 W.sim.sqr = W.sim^2
 
-# growth rate per population
-W.gr.mat <- matrix(0,nrow = length(W.sim), ncol = 11)
-for (i in 1:11){  
-  W.gr.mat[,i] <- std.gr[i] + beta.4kalman * W.sim.sqr
-}
-
-# standardize growth rate changes per population
-# (A + BX - (A + BX - ßW)) / (A + BX)
-# ßW/(A+BX) # fraction of reduction in growth rate * 100 is % reduction of gr
-std.gr.mat <- matrix(0, nrow = length(W.sim), ncol = 11)
+std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 11)
 for (i in 1:11){
-  std.gr.mat[,i] <- (beta.4kalman * W.sim.sqr) / (std.gr[i])
+  std.gr.hat[,i] <- (-beta.4kalman * W.sim.sqr) / (avg.gr[i])
 }
 
-plot(W.sim, std.gr.mat[,1], ylab = "Standardized change in growth rate", xlab = "Centered water level")
-points(W.sim, std.gr.mat[,2], col = "blue")
-points(W.sim, std.gr.mat[,11], col = "red")
+cool.palette <- as.vector(met.brewer("Signac",11))
+
+plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
+     ylab = "Stnd. ∆ in growth rate", 
+     xlab = "Relative water (stage)", 
+     type = "l", 
+     xlim = c(min(W),max(W)))
+for(i in 2 :11){
+  points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i])
+}
 
 ```
 
 But we can make this figure in a different way
 ```{r}
-std.gr.df <- as.data.frame(std.gr.mat)
+std.gr.df <- as.data.frame(std.gr.hat)
 colnames(std.gr.df) <- c("EAST_Grassy.Waters.Preserve", # EAST
                                         "EVER_WCA.3A", # EVER
                                         "EVER_WCA.2B", # EVER
@@ -970,7 +981,7 @@ std.gr.df |>
   ggplot(aes(x = W.sim, 
              y = Std.gr.change, 
              color = Wetland)) +
-  facet_wrap(~Region, scale = "free_y") +
+  facet_wrap(~Region) +
   geom_line()+
   scale_color_manual(values=met.brewer("Signac",n = 11)) +
   scale_fill_manual(values=met.brewer("Signac",n = 11)) +
@@ -981,13 +992,12 @@ std.gr.df |>
 
 ```
 
+# How will this affect the next step estimation?
 
-```{r eval=FALSE, echo=FALSE}
-kalman.mcmc.w <- readRDS("Code/Kalman_w_detect_OUSS.RDS")
-Xkalman.w <-  do.call(rbind, kalman.mcmc.w)
+We cannot project to many years ahead the model, because the covariates messed with the stationary definition. But we can model the next step and the changes in relative water level.
 
-Kalman.quants.w <- apply(Xkalman.w, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) 
-
+Let's bring the last point estimation per wetland:
+```{r eval=TRUE, echo=TRUE}
 len <- ncol(S4mat)
 
 names.quants.1 <- substr(colnames(Kalman.quants.w), start=1, stop=3)
@@ -1005,8 +1015,38 @@ X10s <- Kalman.quants.w[,which(names.quants.2=="X[10", arr.ind=TRUE)]
 X11s <- Kalman.quants.w[,which(names.quants.2=="X[11", arr.ind=TRUE)]
 ```
 
-And simulate the next point with the quadratic relationship of Relative water (stage)
-```{r eval=FALSE, echo=FALSE}
+We can estimate the change in abundance distribution with change in relative water. Given that it is a relative value centered around 0, multiply by a percentage of change change mainly the spread of the data, but little change in mean value (from `green` to `red` or `blue`:
+```{r}
+hist(W, breaks = 100, xlim = c(-10,10))
+abline(v = mean(W), col = "green")
+
+hist(W*0.5, breaks = 100, xlim = c(-10,10))
+abline(v = mean(W), col = "green")
+abline(v = mean(W*0.5), col = "red")
+
+hist(W*1.5, breaks = 100, xlim = c(-10,10))
+abline(v = mean(W), col = "green")
+abline(v = mean(W*0.5), col = "red")
+abline(v = mean(W*1.5), col = "blue")
+```
+
+But we can add specific values of change in relative water, assuming change in values but not in spread
+```{r}
+hist(W, breaks = 100, xlim = c(-10,10))
+abline(v = mean(W), col = "green")
+
+hist(W+2, breaks = 100, xlim = c(-10,10))
+abline(v = mean(W), col = "green")
+abline(v = mean(W+2), col = "red")
+
+hist(W-2, breaks = 100, xlim = c(-10,10))
+abline(v = mean(W), col = "green")
+abline(v = mean(W+2), col = "red")
+abline(v = mean(W-2), col = "blue")
+```
+
+Thus, we can simulate the next point with the quadratic relationship of Relative water (stage)
+```{r eval=TRUE, echo=TRUE}
 MVX.sim <- function(
     xo.vec = c(X1s[2,28],
                X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],
@@ -1023,9 +1063,9 @@ MVX.sim <- function(
                       beta = beta.4kalman),
     rnames = row.names(S4mat),
     Nsims = 10,
-    pct.change = 0.9
+    pt.change = 1
     ){
-  W <- W*pct.change
+  W <- (pt.change)^2 #change in value of Water, but quadratic effect
   p  <- theta.list$p
   Ip <- theta.list$Ip
   muvec <- theta.list$muvec
@@ -1037,7 +1077,8 @@ MVX.sim <- function(
   Sigma <- (1/sigmasq)*Ip
   
     ## Process error
-    X <- randmvn(n=Nsims,mu.vec=A + beta*W + B%*%xo.vec, cov.mat=Sigma)
+    X <- randmvn(n=Nsims,
+                 mu.vec=A + beta*W + B%*%xo.vec, cov.mat=Sigma)
 
   #X <- cbind(xo.vec,X)
   row.names(X) <- rnames
@@ -1046,11 +1087,10 @@ MVX.sim <- function(
 }
 ```
 
-We can estimate the change in abundance distribution with change in relative water from reduction of $50$% to increase of $50$%
-
-```{r Change in Water, eval=FALSE, echo=FALSE} 
+And we can try different values, like above the Relative stage values in Fig. 4b of [Fletcher et al. 2021](https://doi.org/10.1016/j.biocon.2020.108893).
+```{r Change in Water, eval=TRUE, echo=TRUE} 
 probs.change.list <- list()
-changes <- seq(1.5,0.5, by=-0.1)
+changes <- seq(5,-5, by=-2.5)
 nchanges <- length(changes)
 
 for(i in 1:nchanges){
@@ -1061,7 +1101,7 @@ for(i in 1:nchanges){
                X9s[2,28],
                X10s[2,28],
                X11s[2,28]),
-               W = W[,28]^2,
+               W = W[,28],
     theta.list = list(p=p,
                       Ip =  diag(p),
                       muvec = muvec4kalman,
@@ -1069,48 +1109,148 @@ for(i in 1:nchanges){
                       B = B,
                       beta = beta.4kalman),
     rnames = row.names(S4mat),
-    Nsims = 1000,
-    pct.change = changes[i])
+    Nsims = 100000,
+    pt.change = changes[i])
 }
 names(probs.change.list) <- as.character(sprintf("%.1f", changes))
 ```
 
-```{r eval=FALSE, echo=FALSE}
-probs.change.df <- as.data.frame(probs.change.list)
+```{r eval=TRUE, echo=TRUE}
+
+probs.change.df <- bind_rows(
+  lapply(names(probs.change.list), function(name) {
+    df <- as.data.frame(probs.change.list[[name]])
+    # Save row names as a column
+    df$wetland <- rownames(probs.change.list[[name]])  
+    # Add the original name as a column
+    df$change <- paste0("∆ ",name)
+    return(df)
+  }),
+  .id = "id"  # Optional: adds an index column
+)
+
+table(probs.change.df$change)
 
 probs.change.df.long <- probs.change.df |>
-  mutate(wetland = rownames(probs.change.df)) |>
-  pivot_longer(-wetland, 
+  dplyr::select(!c(id)) |>
+  pivot_longer(-c(wetland,change), 
                names_to = "P.change_Sim", 
                values_to = "mu")
 
-probs.change.df.long$P.change <- substr(probs.change.df.long$P.change_Sim, 
-                                        start = 2, stop = 4)
+probs.change.df.long$change <- factor(probs.change.df.long$change,
+                                      levels = c("∆ 5.0",
+                                                 "∆ 2.5",
+                                                 "∆ 0.0",
+                                                 "∆ -2.5",
+                                                 "∆ -5.0"))
+
 ```
 
 And make the density plots
-```{r eval=FALSE, echo=FALSE}
-change.water <- ggplot(probs.change.df.long, 
-       aes(x = exp(mu),
-           color = factor(P.change),
-           fill = factor(P.change)))+
-  facet_wrap(~wetland, scales = "free", ncol = 3)+
+```{r eval=TRUE, echo=TRUE}
+change.water.log <- probs.change.df.long |>
+  ggplot(aes(x = mu,
+           color = factor(change),
+           fill = factor(change)))+
+  facet_wrap(~wetland, ncol = 3, scales = "free")+
   geom_density(alpha = 0.05, position = "dodge")+
 #  geom_density_ridges(rel_min_height = 0.01,
 #                      alpha = 0.05, scale = 0.9, jittered_points = FALSE,
 #                      position = position_points_jitter(width = 0.05, height = 0))+
-  scale_color_manual(values=met.brewer("Signac",n = 11)) +
-  scale_fill_manual(values=met.brewer("Signac",n = 11)) +
-  labs(color = "",
-       fill = "",
-       x = expression(e^mu))+
-  theme_bw()+
+  scale_color_manual(values=met.brewer("Signac",n = nchanges)) +
+  scale_fill_manual(values=met.brewer("Signac",n = nchanges)) +
+  labs(x = expression(mu))+
+  theme_classic()+
   theme(legend.position = "inside",
         legend.position.inside = c(0.85,0.1),
-        legend.direction = "horizontal",
-        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))
+        legend.direction = "vertical",
+        legend.title = element_blank(),
+        legend.background = element_rect(fill="white",
+                                  linewidth=0.5, linetype="solid", 
+                                  colour ="black"),
+        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))+
+  guides(color=guide_legend(ncol =1),
+         fill=guide_legend(ncol=1))
 
-ggsave(change.water, filename = "Q2.jpg",dpi = 300,
-       width = 230, height = 170, units = "mm")
-  
+ggsave(change.water.log, filename = "Q2_log.jpg",dpi = 300,
+       width = 210, height = 180, units = "mm")
 ```
+![Change in expected abundance (log-scale) with change in relative water (stage) values](Q2_log.jpg)
+But the previous figure is only one step, from the current year. If we want to compare across populations what is the effect, we can use as start the mean expected $\hat{\mu}$ from the overall trajectory
+
+```{r eval=TRUE, echo=TRUE}
+probs.change.list <- list()
+changes <- seq(5,-5, by=-2.5)
+nchanges <- length(changes)
+
+for(i in 1:nchanges){
+  probs.change.list[[i]] <- MVX.sim(
+    xo.vec = c(muvec4kalman),
+               W = W[,28],
+    theta.list = list(p=p,
+                      Ip =  diag(p),
+                      muvec = muvec4kalman,
+                      sigmasq = sigsq4kalman,
+                      B = B,
+                      beta = beta.4kalman),
+    rnames = row.names(S4mat),
+    Nsims = 100000,
+    pt.change = changes[i])
+}
+names(probs.change.list) <- as.character(sprintf("%.1f", changes))
+
+probs.change.df <- bind_rows(
+  lapply(names(probs.change.list), function(name) {
+    df <- as.data.frame(probs.change.list[[name]])
+    # Save row names as a column
+    df$wetland <- rownames(probs.change.list[[name]])  
+    # Add the original name as a column
+    df$change <- paste0("∆ ",name)
+    return(df)
+  }),
+  .id = "id"  # Optional: adds an index column
+)
+
+table(probs.change.df$change)
+
+probs.change.df.long <- probs.change.df |>
+  dplyr::select(!c(id)) |>
+  pivot_longer(-c(wetland,change), 
+               names_to = "P.change_Sim", 
+               values_to = "mu")
+
+probs.change.df.long$change <- factor(probs.change.df.long$change,
+                                      levels = c("∆ 5.0",
+                                                 "∆ 2.5",
+                                                 "∆ 0.0",
+                                                 "∆ -2.5",
+                                                 "∆ -5.0"))
+
+change.water.log.mu <- probs.change.df.long |>
+  ggplot(aes(x = mu,
+           color = factor(change),
+           fill = factor(change)))+
+  facet_wrap(~wetland, ncol = 3, scales = "free")+
+  geom_density(alpha = 0.05, position = "dodge")+
+#  geom_density_ridges(rel_min_height = 0.01,
+#                      alpha = 0.05, scale = 0.9, jittered_points = FALSE,
+#                      position = position_points_jitter(width = 0.05, height = 0))+
+  scale_color_manual(values=met.brewer("Signac",n = nchanges)) +
+  scale_fill_manual(values=met.brewer("Signac",n = nchanges)) +
+  labs(x = expression(mu))+
+  theme_classic()+
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.85,0.1),
+        legend.direction = "vertical",
+        legend.title = element_blank(),
+        legend.background = element_rect(fill="white",
+                                  linewidth=0.5, linetype="solid", 
+                                  colour ="black"),
+        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))+
+  guides(color=guide_legend(ncol =1),
+         fill=guide_legend(ncol=1)) 
+
+ggsave(change.water.log.mu, filename = "Q2_log_mu.jpg",dpi = 300,
+       width = 210, height = 180, units = "mm")
+```
+![Change in expected abundance (log-scale) with change in relative water (stage) values](Q2_log_mu.jpg)

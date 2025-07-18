@@ -875,7 +875,7 @@ kalman_wide$wetland <- factor(kalman_wide$wetland,
 Wetland_water_detectp <- ggplot(kalman_wide, aes(x = time, y = `50%`, 
                         color = factor(region), 
                         fill = factor(region))) +
-  facet_wrap(~wetland, scales = "free_y", ncol = 3) +
+  facet_wrap(~wetland, ncol = 3, scales = "free_y") +
   geom_line() +
   geom_ribbon(aes(ymin = `2.5%`, ymax = `97.5%`), 
               alpha = 0.2, color = NA) +
@@ -894,7 +894,7 @@ Wetland_water_detectp <- ggplot(kalman_wide, aes(x = time, y = `50%`,
   theme(legend.position = "inside",
         legend.position.inside = c(0.85,0.1),
         legend.direction = "horizontal",
-        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))
+        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm")) 
 
 ggsave(Wetland_water_detectp, filename = "Wetland_water_detectp.jpg",dpi = 300,
        width = 230, height = 170, units = "mm")
@@ -910,27 +910,65 @@ In this plot, the open points represent three surveys per year: down-facing tria
 From the initial model
 
 $$
-\mathbf{X}_{t+1} = \mathbf{X}_t +\mathbf{A}+
+\begin{array}{cccc}
+\mathbf{X}_{t+1} &=& \mathbf{X}_t + \mathbf{A} + \mathbf{BX}_t + \mathbf{E}_t && \\
+&=& \mathbf{A} + (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t&;&~\mathcal{B} = \mathbf{I}+ \mathbf{B}
+\end{array}
+$$
+Note that the growth rate $\text{R}_t$ can be defined as:
+$$
+\begin{array}{cccc}
+\text{R}_t&=&\ln{S_{t+1}}-\ln{S_t} && \\
+&=& \mathbf{X}_{t+1} - \mathbf{X}_t &=& \mathbf{A} + \mathbf{BX}_t+\mathbf{E}_t \\ 
+
+&=& \mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_t + \mathbf{E}_t
+\end{array}
+$$
+In the long-run, $\mathbf{X}_t = \mathbf{X}_{\inf}$ is invariant. At stationary, $\mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{X}_{\inf}-\mathbf{X}_{\inf} = 0$, and $\text{R}_t = \mathbf{X}_{\inf}-\mathbf{X}_{\inf} = 0 =\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_t + \mathbf{E}_t$.
+
+Taking expected values, we get the average growth rate
+$$
+\begin{array}{ccc}
+\text{E}[\text{R}_t] &=& \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_{\inf} + \mathbf{E}_t]\\
+&=&\mathbf{A} + (\mathcal{B}-\mathbf{I})\times \text{E}[\mathbf{X}_{\inf}]+0 \\
+&=& \mathbf{A} + (\mathcal{B}-\mathbf{I})\mu
+
+\end{array}
 $$
 
-
-The relationship of change in growth rate in response to water can be showed by the difference of growth rate including the quadratic water effect ($\mathbf{A}+\mathbf{BX}_t+\hat{\beta}\text{W}^2_t$) and growth rate without including the water effect (the average growth rate; $\mathbf{A}+\mathbf{BX}_t$):
+Thus, this average growth rate is estimated with:
 $$
-\Delta_{\text{Growth rate}} = \frac{(\mathbf{A}+(\mathcal{B}-\mathbf{I})\mathbf{X}_t+\hat{\beta}\text{W}^2_t)-(\mathbf{A}+(\mathcal{B}-\mathbf{I})\mathbf{X}_t)}{\mathbf{A}+(\mathcal{B}-\mathbf{I})\mathbf{X}_t} 
+\hat{\text{E}[\text{R}_t]} = \hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}
+$$
+
+With a water covariate effect, the growth rate becomes:
+
+$$
+\mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{A} + \mathbf{BX}_t + \beta W_t^2 + \mathbf{E}_t
+$$
+
+Having estimated $\beta$ as $\hat{\beta}$, we can estimate the potential effect of water in the long-run growth rate as $\hat{\text{E}[\text{R}_t]} + \hat{\beta} W_t^2$, or the average modified growth rate with water effect. Set $\hat{\text{R*}}=\hat{\text{E}[\text{R}_t]} + \hat{\beta} W_t^2$. Then, the standardized water effect on the growth rate is estimated as
+
+$$
+\frac{\text{E}\hat{[\text{R}_t]}-\hat{\text{R*}}}{\text{E}[\hat{\text{R}_t}]} = \frac{\hat{\beta} W^2_t}{\text{E}\hat{[\text{R}_t]}}
+$$
+
+Extended to 
+$$
+\Delta_{\text{Growth rate}} = \frac{(\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu})-(\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}+ \hat{\beta} W_t^2)}{\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}} 
 $$
 
 which is reduced to 
 $$
-\Delta_{std}\text{Growth rate} = \frac{\hat{\beta}\text{W}^2}{\mathbf{A}+\mathbf{BX}_t} 
+\Delta\text{Growth rate}_{std} = \frac{\hat{\beta}\text{W}_t^2}{\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}} 
 $$
-evaluated at $\mathbf{X}_t=\hat{\mu}$
 
 ```{r}
 # standardize growth rate changes per population
 # ((A + BX - ßW)-(A + BX)) / (A + BX)
 # ßW/(A+BX) # fraction of reduction in growth rate
 
-# standard growth rate (A+BX)
+# average growth rate (A+(B-I)X)
 avg.gr <- avec4kalman + (B-diag(p)) %*% muvec4kalman
 
 # Get a range of Water level (centered) for plotting
@@ -1065,7 +1103,7 @@ MVX.sim <- function(
     Nsims = 10,
     pt.change = 1
     ){
-  W <- (pt.change)^2 #change in value of Water, but quadratic effect
+  W <- (W+pt.change)^2 #change in value of Water, but quadratic effect
   p  <- theta.list$p
   Ip <- theta.list$Ip
   muvec <- theta.list$muvec
@@ -1176,7 +1214,7 @@ ggsave(change.water.log, filename = "Q2_log.jpg",dpi = 300,
        width = 210, height = 180, units = "mm")
 ```
 ![Change in expected abundance (log-scale) with change in relative water (stage) values](Q2_log.jpg)
-But the previous figure is only one step, from the current year. If we want to compare across populations what is the effect, we can use as start the mean expected $\hat{\mu}$ from the overall trajectory
+But the previous figure is only one step, from the current year. If we want to compare across populations this effect, we can use as start point the mean expected $\hat{\mu}$ from the overall trajectory
 
 ```{r eval=TRUE, echo=TRUE}
 probs.change.list <- list()

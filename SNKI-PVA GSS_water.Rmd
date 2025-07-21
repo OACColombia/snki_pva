@@ -982,14 +982,69 @@ for (i in 1:11){
 
 cool.palette <- as.vector(met.brewer("Signac",11))
 
+
+eleven.wetlands <- c("EAST_Grassy.Waters.Preserve", # EAST
+                                        "EVER_WCA.3A", # EVER
+                                        "EVER_WCA.2B", # EVER
+                                        "EVER_Loxahatchee.NWR", # EVER
+                                        "EVER_WCA.3B", # EVER
+                                        "KRV_East.Lake.Tohopekaliga", # KRV
+                                        "KRV_Lake.Kissimmee", # KRV
+                                        "KRV_Lake.Istokpoga", # KRV
+                                        "OKEE_Lake.Okeechobee", # OKEE
+                                        "PP_Paynes.Prairie", # PP
+                                        "SJM_SJM" # SJM
+                                        )
+colnames(std.gr.hat) <- eleven.wetlands
+
+
+par(mfrow=c(2,3), oma=c(2,2,2,2), mar=c(4,4,4,2))
 plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
-     ylab = "Stnd. ∆ in growth rate", 
-     xlab = "Relative water (stage)", 
      type = "l", 
-     xlim = c(min(W),max(W)))
-for(i in 2 :11){
-  points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i])
-}
+     xlab="", ylab="",
+     xlim = c(min(W),max(W)),ylim=c(-5000,0),
+     bty="l", main="EAST", cex.main=1.25,lwd=2)
+for(i in 2:5){
+  if(i==2){
+    plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
+     xlim = c(min(W),max(W)),ylim=c(-5000,0),
+     xlab="", ylab="",
+     bty="l", main="EVER", cex.main=1.25,lwd=2)
+   }
+  else{
+    points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
+  }
+}  
+for(i in 6:8){
+  if(i==6){
+    plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
+     xlim = c(min(W),max(W)),ylim=c(-5000,0),
+     xlab="", ylab="",
+     bty="l", main="KRV", cex.main=1.25,lwd=2)
+   }
+  else{
+    points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
+  }
+}  
+plot(W.sim, std.gr.hat[,9], col=cool.palette[9],lwd=2,
+     type = "l", 
+     xlim = c(min(W),max(W)),xlab="", ylab="",ylim=c(-5000,0),
+     bty="l", main="OKEE", cex.main=1.25)
+plot(W.sim, std.gr.hat[,10], col=cool.palette[10],lwd=2,
+     type = "l", 
+     xlim = c(min(W),max(W)),xlab="", ylab="",ylim=c(-5000,0),
+     bty="l", main ="PP", cex.main=1.25)
+plot(W.sim, std.gr.hat[,11], col=cool.palette[11],lwd=2,
+     type = "l", 
+     xlim = c(min(W),max(W)),xlab="", ylab="",ylim=c(-5000,0),
+     bty="l", main="SJM", cex.main=1.25)
+
+mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+
+
+
+
 
 ```
 
@@ -1291,4 +1346,4 @@ change.water.log.mu <- probs.change.df.long |>
 ggsave(change.water.log.mu, filename = "Q2_log_mu.jpg",dpi = 300,
        width = 210, height = 180, units = "mm")
 ```
-![Change in expected abundance (log-scale) with change in relative water (stage) values](Q2_log_mu.jpg)
+![Change in expected abundance (log-scale) with change in relative water (stage) values, starting from the mean abundance at each wetland](Q2_log_mu.jpg)

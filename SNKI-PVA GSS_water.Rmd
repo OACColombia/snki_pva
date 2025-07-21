@@ -510,7 +510,7 @@ $$
 \mathbf{X}_{t+1} = \mathbf{A} + \beta\mathbf{W}^2_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
 $$
 
-and the State-space model is completed by including the observaiton process, as a Poisson error with detection probability:
+and the State-space model is completed by including the observation process, as a Poisson error with detection probability:
 
 $$
 \mathbf{N}_{t} \sim \text{Poisson}(p_{t} \times e^{\mathbf{X}_{t}})
@@ -905,63 +905,63 @@ In this plot, the open points represent three surveys per year: down-facing tria
 
 ![Dynamic population of snail kites for 11 wetlands in 6 regions of Florida - detection probability and linear relationship with Relative water (stage)](Wetland_water_noQuadrd_detectp.jpg)<br>
 
-# How change in water affect growth rate at different populations?
+# How does a change in water level affects the growth rate of the different populations?
 
-From the initial model
+Our modified Gompertz model in full matrix format that includes standardized quadratic water level effectsis:
 
 $$
-\begin{array}{cccc}
-\mathbf{X}_{t+1} &=& \mathbf{X}_t + \mathbf{A} + \mathbf{BX}_t + \mathbf{E}_t && \\
-&=& \mathbf{A} + (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t&;&~\mathcal{B} = \mathbf{I}+ \mathbf{B}
+\mathbf{X}_{t+1} = \mathbf{A} + \beta\mathbf{W}^2_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
+$$
+\noindent where $\mbf{W}$ denotes the standardized water level as explained in the main text.  The State-space model is completed by including the observation process, as a Poisson error with detection probability:
+
+$$
+\mathbf{N}_{t} \sim \text{Poisson}(p_{t} \times e^{\mathbf{X}_{t}}).
+$$
+
+The idea of including the effect of water levels in the growth rate is to be able to compare the estimated growth rate after accounting for the effect of water with the standard growth rate, a little bit like one would compare the reduction of the residual sum of squares brought about by an extra factor added to a regression model. From the initial model we have that
+
+$$
+\begin{array}{lll}
+\mathbf{X}_{t+1} &=& \mathbf{X}_t + \mathbf{A} + \mathbf{BX}_t + \mathbf{E}_t\\
+&=& \mathbf{A} + (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t\quad\text{where}\quad\mathcal{B} = \mathbf{I}+ \mathbf{B}.
 \end{array}
 $$
-Note that the growth rate $\text{R}_t$ can be defined as:
+\noindent Hence, the growth rate $\text{R}_t$ is written as:
 $$
-\begin{array}{cccc}
-\text{R}_t&=&\ln{S_{t+1}}-\ln{S_t} && \\
-&=& \mathbf{X}_{t+1} - \mathbf{X}_t &=& \mathbf{A} + \mathbf{BX}_t+\mathbf{E}_t \\ 
-
-&=& \mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_t + \mathbf{E}_t
-\end{array}
-$$
-In the long-run, $\mathbf{X}_t = \mathbf{X}_{\inf}$ is invariant. At stationary, $\mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{X}_{\inf}-\mathbf{X}_{\inf} = 0$, and $\text{R}_t = \mathbf{X}_{\inf}-\mathbf{X}_{\inf} = 0 =\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_t + \mathbf{E}_t$.
-
-Taking expected values, we get the average growth rate
-$$
-\begin{array}{ccc}
-\text{E}[\text{R}_t] &=& \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_{\inf} + \mathbf{E}_t]\\
-&=&\mathbf{A} + (\mathcal{B}-\mathbf{I})\times \text{E}[\mathbf{X}_{\inf}]+0 \\
-&=& \mathbf{A} + (\mathcal{B}-\mathbf{I})\mu
-
+\begin{array}{lll}
+\text{R}_t&=& \mathbf{X}_{t+1} - \mathbf{X}_t \\
+ &=& \mathbf{A} + \mathbf{BX}_t+\mathbf{E}_t \\ 
+&=& \mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_t + \mathbf{E}_t.
 \end{array}
 $$
 
-Thus, this average growth rate is estimated with:
+\noindent In the long-run, $\mathbf{X}_t = \mathbf{X}_{\infty}$ is invariant and the average growth rate is $\text{E}[\text{R}_t] = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$ which is equal to $\mathbf{A} + (\mathcal{B}-\mathbf{I})\mu$.
+
+\noindent This average growth rate is estimated with:
 $$
-\hat{\text{E}[\text{R}_t]} = \hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}
+\widehat{\text{E}[\text{R}_{t}]} = \hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mbs{\mu}}
 $$
 
 With a water covariate effect, the growth rate becomes:
 
 $$
-\mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{A} + \mathbf{BX}_t + \beta W_t^2 + \mathbf{E}_t
+\text{R}_{t}^{W}= \mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{A} + \mathbf{BX}_t + \beta W_t^2 + \mathbf{E}_t,
 $$
 
-Having estimated $\beta$ as $\hat{\beta}$, we can estimate the potential effect of water in the long-run growth rate as $\hat{\text{E}[\text{R}_t]} + \hat{\beta} W_t^2$, or the average modified growth rate with water effect. Set $\hat{\text{R*}}=\hat{\text{E}[\text{R}_t]} + \hat{\beta} W_t^2$. Then, the standardized water effect on the growth rate is estimated as
+\noindent and its estimated average becomes 
 
 $$
-\frac{\text{E}\hat{[\text{R}_t]}-\hat{\text{R*}}}{\text{E}[\hat{\text{R}_t}]} = \frac{\hat{\beta} W^2_t}{\text{E}\hat{[\text{R}_t]}}
+\widehat{\text{E}\left[\text{R}_{t}^{W}\right]}= \hat{\mathbf{A}} + \hat{\mathbf{B}}\hat{\text{E}[\mbf{X}_t]} + \hat{\beta} W_t^2,
 $$
 
-Extended to 
+\noindent where $\text{E}[X_{t}]$ represents the average of the process at time $t$.  In order to achieve a benchmark comparison with the model without a water covariate, we can replace this quantity by the long-run average $\mbs{\mu}$.  It follows that an estimator of the relative effect (relative to the stationary distribution growth rate) of the water on the growth rate can be estimated with:
+
 $$
-\Delta_{\text{Growth rate}} = \frac{(\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu})-(\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}+ \hat{\beta} W_t^2)}{\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}} 
+\frac{\widehat{\text{E}\left[\text{R}_{t}\right]} - \widehat{\text{E}\left[\text{R}_{t}^{W}\right]}}{\widehat{\text{E}\left[\text{R}_{t}\right]}} = \frac{\hat{\beta}W_t^{2}}{\widehat{\text{E}\left[\text{R}_{t}\right]}} = \frac{\hat{\beta}W_t^{2}}{{\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}} }.
 $$
 
-which is reduced to 
-$$
-\Delta\text{Growth rate}_{std} = \frac{\hat{\beta}\text{W}_t^2}{\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}} 
-$$
+
+
 
 ```{r}
 # standardize growth rate changes per population

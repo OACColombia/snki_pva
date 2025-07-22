@@ -331,32 +331,48 @@ And we can explore how this imputation performed.
 ```{r}
 www_filt_df <- readRDS("data/www_center_filtered_df_impute_AR1_noBeta0.RDS")
 
-www_filt_df |>
+www_filt_df_pre <- www_filt_df |>
   mutate(wet.reg = paste0(region, "_", wetland)) |>
-  ggplot(aes(x = date, y = center_water, color = wet.reg)) +
-  facet_wrap(~region, scales = "free_y") +
+  ggplot(aes(x = date, y = center_water, color = region)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray")+
+  facet_wrap(~wetland, scales = "free_y", ncol = 4) +
   geom_point(alpha = 0.5)+
-  scale_color_manual(values=met.brewer("Signac",n = 30)) +
-  scale_fill_manual(values=met.brewer("Signac"),n = 30) +
+  scale_color_manual(values=met.brewer("Homer2",n = 6)) +
+  scale_fill_manual(values=met.brewer("Homer2"),n = 6) +
   labs(title = "Data not imputed",
        y = "Relative water (stage)")+
   theme_classic()+
-  theme(legend.position = "none")
+  theme(legend.position = "bottom")+
+  guides(color = guide_legend(nrow = 1),
+         fill = guide_legend(nrow = 1))
 
-www_filt_df |>
+ggsave(filename = "ww_pre_impute.jpg", www_filt_df_pre, dpi = 300,
+       width = 230, height = 200, units = "mm")
+
+www_filt_df_post <- www_filt_df |>
   mutate(wet.reg = paste0(region, "_", wetland)) |>
-  ggplot(aes(x = date, y = center_water, color = wet.reg)) +
-  facet_wrap(~region, scales = "free_y") +
+  ggplot(aes(x = date, y = center_water, color = region)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray")+
+  facet_wrap(~wetland, scales = "free_y", ncol = 4) +
   geom_line(aes(y = water_imputed))+
   geom_point(alpha = 0.05)+
   labs(title = "Data imputed (line)",
        y = "Relative water (stage)")+
-  scale_color_manual(values=met.brewer("Signac",n = 30)) +
-  scale_fill_manual(values=met.brewer("Signac"),n = 30) +
+  scale_color_manual(values=met.brewer("Homer2",n = 6)) +
+  scale_fill_manual(values=met.brewer("Homer2"),n = 6) +
   theme_classic()+
-  theme(legend.position = "none")
+  theme(legend.position = "bottom")+
+  guides(color = guide_legend(nrow = 1),
+         fill = guide_legend(nrow = 1))
+
+ggsave(filename = "ww_post_impute.jpg", www_filt_df_post, dpi = 300,
+       width = 230, height = 200, units = "mm")
 
 ```
+
+![Pre](ww_pre_impute.jpg)
+
+![Post](ww_post_impute.jpg)
 
 ### Counts per wetlands across 6 surveys per year
 
@@ -906,13 +922,12 @@ In this plot, the open points represent three surveys per year: down-facing tria
 ![Dynamic population of snail kites for 11 wetlands in 6 regions of Florida - detection probability and linear relationship with Relative water (stage)](Wetland_water_noQuadrd_detectp.jpg)<br>
 
 # How does a change in water level affects the growth rate of the different populations?
-
-Our modified Gompertz model in full matrix format that includes standardized quadratic water level effectsis:
+Our modified Gompertz model in full matrix format that includes standardized quadratic water level effects is:
 
 $$
 \mathbf{X}_{t+1} = \mathbf{A} + \beta\mathbf{W}^2_t+ (\mathbf{I} + \mathbf{B})\mathbf{X}_t + \mathbf{E}_t
 $$
-\noindent where $\mbf{W}$ denotes the standardized water level as explained in the main text.  The State-space model is completed by including the observation process, as a Poisson error with detection probability:
+\noindent where $\mathbf{W}$ denotes the standardized water level as explained in the main text.  The State-space model is completed by including the observation process, as a Poisson error with detection probability:
 
 $$
 \mathbf{N}_{t} \sim \text{Poisson}(p_{t} \times e^{\mathbf{X}_{t}}).
@@ -935,30 +950,22 @@ $$
 \end{array}
 $$
 
-\noindent In the long-run, $\mathbf{X}_t = \mathbf{X}_{\infty}$ is invariant and the average growth rate is $\text{E}[\text{R}_t] = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$ which is equal to $\mathbf{A} + (\mathcal{B}-\mathbf{I})\mu$.
-
-\noindent This average growth rate is estimated with:
-$$
-\widehat{\text{E}[\text{R}_{t}]} = \hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mbs{\mu}}
-$$
-
 With a water covariate effect, the growth rate becomes:
 
 $$
-\text{R}_{t}^{W}= \mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{A} + \mathbf{BX}_t + \beta W_t^2 + \mathbf{E}_t,
+\text{R}_{t}^{W}= \mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{A} + \mathbf{BX}_t + \beta W_t^2 + \mathbf{E}_t.
 $$
 
-\noindent and its estimated average becomes 
+%%%%%%%%%%%% CONTINUE HERE
+
+\noindent Thus, to achieve a benchmark comparison with the model without a water covariate, we can simply subtract both growth rates which simply yields $\beta W^2$.  Because that coefficient is assumed to be the same for all populations, scaling it by the vector of means $\boldsymbol{\mu} = \mathbf{(I-B)^{-1}A}$ allows one to compare visually how the water term affects the growth rate.  Thus, we set the estimate of the water effects as:
 
 $$
-\widehat{\text{E}\left[\text{R}_{t}^{W}\right]}= \hat{\mathbf{A}} + \hat{\mathbf{B}}\hat{\text{E}[\mbf{X}_t]} + \hat{\beta} W_t^2,
+\boldsymbol{\beta_W} = \frac{\widehat{\beta}W_t^{2}}{\widehat{\boldsymbol{\mu}}}.
 $$
 
-\noindent where $\text{E}[X_{t}]$ represents the average of the process at time $t$.  In order to achieve a benchmark comparison with the model without a water covariate, we can replace this quantity by the long-run average $\mbs{\mu}$.  It follows that an estimator of the relative effect (relative to the stationary distribution growth rate) of the water on the growth rate can be estimated with:
 
-$$
-\frac{\widehat{\text{E}\left[\text{R}_{t}\right]} - \widehat{\text{E}\left[\text{R}_{t}^{W}\right]}}{\widehat{\text{E}\left[\text{R}_{t}\right]}} = \frac{\hat{\beta}W_t^{2}}{\widehat{\text{E}\left[\text{R}_{t}\right]}} = \frac{\hat{\beta}W_t^{2}}{{\hat{\mathbf{A}}+(\hat{\mathcal{B}}-\mathbf{I})\hat{\mu}} }.
-$$
+\noindent where we abuse a bit of the vector notation and remark that the division in the above fraction represents elementwise division.  Thus, $\mbs{\beta_W}$ is a vector of estimated water effects per wetland studied.  We emphasize that adopting this statistic to estimate the water effects is useful because it directly shows how the maximum growth rates, the strength of density dependence and the inter-demes effects $b_{ij}$ regulate the effect of water level changes in every deme.  Finally, note that using the value of $\boldsymbol{\mu}$ to scale the water effect is also justified because it is the value of the process that renders the growth rate zero on average. To see why, recall that in the long-run, $\mathbf{X}_t = \mathbf{X}_{t+1} = \mathbf{X}_{\infty}$ is invariant over time so that the average growth rate is $\text{E}[\text{R}_t] = \mathbf{0} = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$. (To check that this is true, note that the RHS of this last equation is $\mathbf{A} + (\mathcal{B}-\mathbf{I})\text{E}[\mathbf{X}_\infty] = \mathbf{A} + (\mathcal{B}-\mathbf{I})\boldsymbol{\mu}$ and since $\boldsymbol{\mu} = (\mathbf{I-B})^{-1}\mathbf{A}$ the last equation becomes $\mathbf{A} -\mathbf{IA} = \mathbf{0}$).
 
 
 
@@ -969,7 +976,7 @@ $$
 # ßW/(A+BX) # fraction of reduction in growth rate
 
 # average growth rate (A+(B-I)X)
-avg.gr <- avec4kalman + (B-diag(p)) %*% muvec4kalman
+avg.gr <- muvec4kalman #avec4kalman + (B-diag(p)) %*% muvec4kalman
 
 # Get a range of Water level (centered) for plotting
 W.sim = seq(min(W),max(W),by = 0.01)
@@ -977,23 +984,201 @@ W.sim.sqr = W.sim^2
 
 std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 11)
 for (i in 1:11){
-  std.gr.hat[,i] <- (-beta.4kalman * W.sim.sqr) / (avg.gr[i])
+  std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
 }
 
 cool.palette <- as.vector(met.brewer("Signac",11))
 
+
+eleven.wetlands <- c("EAST_Grassy.Waters.Preserve", # EAST
+                                        "EVER_WCA.3A", # EVER
+                                        "EVER_WCA.2B", # EVER
+                                        "EVER_Loxahatchee.NWR", # EVER
+                                        "EVER_WCA.3B", # EVER
+                                        "KRV_East.Lake.Tohopekaliga", # KRV
+                                        "KRV_Lake.Kissimmee", # KRV
+                                        "KRV_Lake.Istokpoga", # KRV
+                                        "OKEE_Lake.Okeechobee", # OKEE
+                                        "PP_Paynes.Prairie", # PP
+                                        "SJM_SJM" # SJM
+                                        )
+#std.gr.hat <- mat.forlist
+
+colnames(std.gr.hat) <- eleven.wetlands
+
+
+par(mfrow=c(2,3), oma=c(2,2,2,2), mar=c(4,4,4,2))
 plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
-     ylab = "Stnd. ∆ in growth rate", 
-     xlab = "Relative water (stage)", 
      type = "l", 
-     xlim = c(min(W),max(W)))
-for(i in 2 :11){
-  points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i])
-}
+     xlab="", ylab="",
+     xlim = c(min(W),max(W)),ylim=c(-2,0),
+     bty="l", main="EAST", cex.main=1.25,lwd=2)
+for(i in 2:5){
+  if(i==2){
+    plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
+     xlim = c(min(W),max(W)), ylim=c(-2,0),
+     xlab="", ylab="",
+     bty="l", main="EVER", cex.main=1.25,lwd=2)
+   }
+  else{
+    points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
+  }
+}  
+for(i in 6:8){
+  if(i==6){
+    plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
+     xlim = c(min(W),max(W)), ylim=c(-2,0),
+     xlab="", ylab="",
+     bty="l", main="KRV", cex.main=1.25,lwd=2)
+   }
+  else{
+    points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
+  }
+}  
+plot(W.sim, std.gr.hat[,9], col=cool.palette[9],lwd=2,
+     type = "l", 
+     xlim = c(min(W),max(W)),xlab="", ylab="",  ylim=c(-2,0),
+     bty="l", main="OKEE", cex.main=1.25)
+plot(W.sim, std.gr.hat[,10], col=cool.palette[10],lwd=2,
+     type = "l", 
+     xlim = c(min(W),max(W)),xlab="", ylab="",  ylim=c(-2,0),
+     bty="l", main ="PP", cex.main=1.25)
+plot(W.sim, std.gr.hat[,11], col=cool.palette[11],lwd=2,
+     type = "l", 
+     xlim = c(min(W),max(W)),xlab="", ylab="", ylim=c(-2,0),
+     bty="l", main="SJM", cex.main=1.25)
+
+mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+
 
 ```
 
-But we can make this figure in a different way
+Next, we show the code to compute the confidence intervals for the parabolic curves shown in the previous plot:
+
+```{r cis for water effects, eval=FALSE}
+
+# create a Function to compute the
+# standardized growth rate changes per population
+# ((A + BX - ßW)-(A + BX)) / (A + BX) 
+# ßW/(A+BX) # fraction of reduction in growth rate
+
+one.boot.quad.effect <- function(p, muvec4kalman, beta.4kalman){
+
+  # average growth rate (A+(B-I)X)
+  avg.gr <- muvec4kalman
+  #avg.gr[avg.gr==0] <- .Machine$double.xmin
+  #print(avg.gr)
+  # Get a range of Water level (centered) for plotting
+  W.sim = seq(min(W),max(W),by = 0.01)
+  W.sim.sqr = W.sim^2
+
+  std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 11)
+  for (i in 1:11){
+    std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
+  }
+  
+  return(std.gr.hat)
+}
+
+# Pull back the MCMC chain only with the parameters I need
+
+# Print these three lines to recall the structure of the MCMC chain
+length(mgssdclone_w)
+dim(mgssdclone_w[[1]])
+colnames(mgssdclone_w[[1]])
+
+
+NMCMC <- dim(mgssdclone_w[[1]])[1]
+
+st.gr.boot.list <- list() #Here I will save 10000 std.gr.hats
+
+inftest <- rep(0, NMCMC)
+for(i in 1:NMCMC){
+  
+  # Retrieve the model parameters:
+  beta.star <- mgssdclone_w[[1]][i,12]
+  muvec.star <-   mgssdclone_w[[1]][i,26:36]
+
+  
+
+  mat.forlist <- one.boot.quad.effect(p=p, 
+                                      muvec4kalman=muvec.star, 
+                                      beta.4kalman=beta.star)
+  st.gr.boot.list[[i]] <- mat.forlist
+  notinf <- sum(is.infinite(mat.forlist))<1
+  
+  inftest[i] <- notinf
+  
+}
+
+# Test plot
+# par(mfrow=c(1,1), oma=c(2,2,2,2), mar=c(4,4,4,2))
+# plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
+#      type = "l", 
+#      xlab="", ylab="",
+#      xlim = c(min(W),max(W)),ylim=c(-2,0),
+#      bty="l", main="EAST", cex.main=1.25,lwd=2)
+# for(i in 1:NMCMC){
+#   points(W.sim, st.gr.boot.list[[i]][,1],col=scales::alpha(cool.palette[1],0.01),
+#      type = "l")
+# }
+
+saveRDS(st.gr.boot.list, file="Code/stgrbootlist.RDS")
+```
+
+```{r}
+
+st.gr.boot.list <- readRDS(file="Code/stgrbootlist.RDS")
+# Re-organizing the 10,000 list into 11 matrices each with 10,000 columns
+
+NMCMC <- dim(mgssdclone_w[[1]])[1]
+
+std.gr.11.mats <- list()
+for(i in 1:11){
+  ith.of11.bootmat <- matrix(0,nrow=length(W.sim), ncol=NMCMC)
+  for(j in 1:NMCMC){
+    ith.of11.bootmat[,j] <- st.gr.boot.list[[j]][,i]
+  }
+  std.gr.11.mats[[i]] <- ith.of11.bootmat
+}
+
+
+# Maybe it's better to save the 11 matrices of quantiles as well:
+
+quants4.11.mats <- list()
+for(i in 1:11){
+  quants4.11.mats[[i]] <- apply(std.gr.11.mats[[i]], 1, 
+                                FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))})
+}
+
+
+par(mfrow=c(3,4), oma=c(2,2,2,2), mar=c(4,4,4,2))
+for(i in 1:11){
+  plot(W.sim, std.gr.hat[,i], col=cool.palette[i],
+       type = "l", 
+       xlab="", ylab="",
+       xlim = c(min(W),max(W)),ylim=c(-2,0),
+       bty="l", main=eleven.wetlands[i], cex.main=1.25,lwd=2)
+  polygon(c(W.sim,rev(W.sim)),c(quants4.11.mats[[i]][1,], 
+                                                    rev(quants4.11.mats[[i]][3,])), 
+          col=scales::alpha(cool.palette[i],0.5), border=NA)
+  points(W.sim, std.gr.hat[,i], col=cool.palette[i],
+       type = "l", lwd=2)
+}
+mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+
+
+
+
+
+
+
+```
+
+
+We can make this figure in a different way
 ```{r}
 std.gr.df <- as.data.frame(std.gr.hat)
 colnames(std.gr.df) <- c("EAST_Grassy.Waters.Preserve", # EAST
@@ -1291,4 +1476,4 @@ change.water.log.mu <- probs.change.df.long |>
 ggsave(change.water.log.mu, filename = "Q2_log_mu.jpg",dpi = 300,
        width = 210, height = 180, units = "mm")
 ```
-![Change in expected abundance (log-scale) with change in relative water (stage) values](Q2_log_mu.jpg)
+![Change in expected abundance (log-scale) with change in relative water (stage) values, starting from the mean abundance at each wetland](Q2_log_mu.jpg)

@@ -331,32 +331,48 @@ And we can explore how this imputation performed.
 ```{r}
 www_filt_df <- readRDS("data/www_center_filtered_df_impute_AR1_noBeta0.RDS")
 
-www_filt_df |>
+www_filt_df_pre <- www_filt_df |>
   mutate(wet.reg = paste0(region, "_", wetland)) |>
-  ggplot(aes(x = date, y = center_water, color = wet.reg)) +
-  facet_wrap(~region, scales = "free_y") +
+  ggplot(aes(x = date, y = center_water, color = region)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray")+
+  facet_wrap(~wetland, scales = "free_y", ncol = 4) +
   geom_point(alpha = 0.5)+
-  scale_color_manual(values=met.brewer("Signac",n = 30)) +
-  scale_fill_manual(values=met.brewer("Signac"),n = 30) +
+  scale_color_manual(values=met.brewer("Homer2",n = 6)) +
+  scale_fill_manual(values=met.brewer("Homer2"),n = 6) +
   labs(title = "Data not imputed",
        y = "Relative water (stage)")+
   theme_classic()+
-  theme(legend.position = "none")
+  theme(legend.position = "bottom")+
+  guides(color = guide_legend(nrow = 1),
+         fill = guide_legend(nrow = 1))
 
-www_filt_df |>
+ggsave(filename = "ww_pre_impute.jpg", www_filt_df_pre, dpi = 300,
+       width = 230, height = 200, units = "mm")
+
+www_filt_df_post <- www_filt_df |>
   mutate(wet.reg = paste0(region, "_", wetland)) |>
-  ggplot(aes(x = date, y = center_water, color = wet.reg)) +
-  facet_wrap(~region, scales = "free_y") +
+  ggplot(aes(x = date, y = center_water, color = region)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray")+
+  facet_wrap(~wetland, scales = "free_y", ncol = 4) +
   geom_line(aes(y = water_imputed))+
   geom_point(alpha = 0.05)+
   labs(title = "Data imputed (line)",
        y = "Relative water (stage)")+
-  scale_color_manual(values=met.brewer("Signac",n = 30)) +
-  scale_fill_manual(values=met.brewer("Signac"),n = 30) +
+  scale_color_manual(values=met.brewer("Homer2",n = 6)) +
+  scale_fill_manual(values=met.brewer("Homer2"),n = 6) +
   theme_classic()+
-  theme(legend.position = "none")
+  theme(legend.position = "bottom")+
+  guides(color = guide_legend(nrow = 1),
+         fill = guide_legend(nrow = 1))
+
+ggsave(filename = "ww_post_impute.jpg", www_filt_df_post, dpi = 300,
+       width = 230, height = 200, units = "mm")
 
 ```
+
+![Pre](ww_pre_impute.jpg)
+
+![Post](ww_post_impute.jpg)
 
 ### Counts per wetlands across 6 surveys per year
 

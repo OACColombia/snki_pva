@@ -158,7 +158,10 @@ wetland_region <- read.csv("Code/wetlands and demes.csv") |>
   # adjust name "regions"
   rename(region = deme) |>
   # unify names (spaces and dash as points)
-  mutate(wetland = gsub("[- ]", ".", wetland))
+  mutate(wetland = gsub("[- ]", ".", wetland)) |>
+  # remove the name of "CATCHMENT" which is "Grassy.Waters.Preserve"
+    # and "Fellsmere" which is "SJM"
+  filter(!wetland %in% c("CATCHMENT","Fellsmere"))
 
 # count of number of wetlands per region
 table(wetland_region$region)
@@ -184,7 +187,9 @@ daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |>
   mutate(date = dmy(Daily.Date)) |>
   pivot_longer(cols = !c("date", "Daily.Date"),
                names_to = "wetland",
-               values_to = "daily_water")
+               values_to = "daily_water") |>
+  mutate(wetland = ifelse(wetland == "Fellsmere", "SJM", wetland))
+
 nrow(daily_wetland_water)
 ```
 
@@ -329,7 +334,8 @@ saveRDS(www_filt_df, "data/www_center_filtered_df_impute_AR1_noBeta0.RDS")
 
 And we can explore how this imputation performed.
 ```{r}
-www_filt_df <- readRDS("data/www_center_filtered_df_impute_AR1_noBeta0.RDS")
+www_filt_df <- readRDS("data/www_center_filtered_df_impute_AR1_noBeta0.RDS") |>
+  filter(wetland != "Fellsmere")
 
 www_filt_df_pre <- www_filt_df |>
   mutate(wet.reg = paste0(region, "_", wetland)) |>
@@ -384,34 +390,46 @@ names(snki_N_wetland)
 ```
 
 Converting in a long format matches the organization of the water level, which we can add and then extract the mean and standard deviation value for each week before each survey (immediate conditions pre-survey might affect the counts).
-```{r}
+```{r, warning=FALSE}
 # long format with water level per survey
 snki_N_wetland_region <- snki_N_wetland |>
   # move wetland columns to a single, having the count reported
   pivot_longer(cols = !c(X, year, survey_num), 
                names_to = "wetland", 
-               values_to = "count") |> 
+               values_to = "count") |>
+  mutate(wetland = ifelse(wetland == "CATCHMENT", "Grassy.Waters.Preserve",
+                          wetland),
+         wetland = ifelse(wetland == "Fellsmere", "SJM",
+                          wetland), 
+         wetland = ifelse(wetland == "Arbuckle", "Lake.Arbuckle",
+                          wetland)) |> 
   # merge with the daily water wetland level
-  left_join(www_filt_df) |> filter(!is.na(water_imputed)) |>
+  left_join(www_filt_df |> 
+              select(X, wetland, water_imputed)) |>
+  filter(!is.na(water_imputed) | !is.na(count)) |>
+  # merge the region 
+  left_join(wetland_region) |>
+  rename(survey_id = X) |>
   # extract survey mean and CV
-  group_by(survey_id, region.wetland, region, wetland, year, survey_num) |>
+  group_by(region, wetland, year, survey_id, survey_num) |>
   summarise(
-    count = mean(count, na.rm = TRUE),
+    count = round(mean(count, na.rm = TRUE),0),
     mu_water = mean(water_imputed, na.rm = TRUE),
     sd_water = sd(water_imputed, na.rm = TRUE)) |>
-  arrange(region.wetland, year) |>
-  as.data.frame()
+  arrange(region, wetland, year) |>
+  as.data.frame() 
+  
 ```
 
 We can explore which wetlands has more data
 ```{r}
-snki_N_wetland_region |>
+snki_N_wetland_region |> 
   mutate(region = ifelse(wetland == "STA.Lakeside.Ranch","OTHER",
-                         region)) |>
+                         region)) |> 
   # to summarize, `group_by()`
   group_by(region, wetland) |>
   # remove NA surveys
-  drop_na(count) |>
+  drop_na(count) |> 
   # how many surveys per wetland?
   count() |> 
   # sort the information (for Table 1 in the report)
@@ -430,10 +448,15 @@ snki_N_water <- snki_N_wetland_region |>
     "WCA.3A", # EVER
     "WCA.2B", # EVER
     "Loxahatchee.NWR", # EVER
+#    "WCA.2A", # EVER - but does not have hydrology gauge data
     "WCA.3B", # EVER
+    "Everglades.NP", # EVER
+    "STA1E", # EVER
     "East.Lake.Tohopekaliga", # KRV
     "Lake.Kissimmee", # KRV
     "Lake.Istokpoga", # KRV
+    "Lake.Hatchineha", # KRV - below threshold of surveys, but added for managers interest
+    "Lake.Tohopekaliga", # KRV - below threshold of surveys, but added for managers interest
     "Lake.Okeechobee", # OKEE
     "Paynes.Prairie", # PP
     "SJM" # SJM
@@ -480,16 +503,21 @@ And generate the three matrices
 names.snkicounts <- names(snki_counts)
 wet.names <- c(
   "EAST_Grassy.Waters.Preserve", # EAST
-  "EVER_WCA.3A", # EVER
-  "EVER_WCA.2B", # EVER
-  "EVER_Loxahatchee.NWR", # EVER
-  "EVER_WCA.3B", # EVER
-  "KRV_East.Lake.Tohopekaliga", # KRV
-  "KRV_Lake.Kissimmee", # KRV
-  "KRV_Lake.Istokpoga", # KRV
-  "OKEE_Lake.Okeechobee", # OKEE
-  "PP_Paynes.Prairie", # PP
-  "SJM_SJM" # SJM
+    "EVER_WCA.3A", # EVER
+    "EVER_WCA.2B", # EVER
+    "EVER_Loxahatchee.NWR", # EVER
+#    "WCA.2A", # EVER - but does not have hydrology gauge data
+    "EVER_WCA.3B", # EVER
+    "EVER_Everglades.NP", # EVER
+    "EVER_STA1E", # EVER
+    "KRV_East.Lake.Tohopekaliga", # KRV
+    "KRV_Lake.Kissimmee", # KRV
+    "KRV_Lake.Istokpoga", # KRV
+    "KRV_Lake.Hatchineha", # KRV - below threshold of surveys, but added for managers interest
+    "KRV_Lake.Tohopekaliga", # KRV - below threshold of surveys, but added for managers interest
+    "OKEE_Lake.Okeechobee", # OKEE
+    "PP_Paynes.Prairie", # PP
+    "SJM_SJM" # SJM
   )
 cols.with.counts <- match(wet.names, names.snkicounts)
 years <- unique(snki_counts$year)
@@ -498,7 +526,7 @@ year.col <- which(names.snkicounts=="year",arr.in=TRUE)
 surv.num <- unique(snki_counts$survey_num)
 tt <- years - years[1]
 
-S4mat <- S5mat <- S6mat <- matrix(0, nrow=11, ncol=nyears)
+S4mat <- S5mat <- S6mat <- matrix(0, nrow=length(wet.names), ncol=nyears)
 
 Counts.list <- list(S4mat = S4mat, S5mat=S5mat, S6mat=S6mat)
 Water.list <- list(W4mat =  S4mat, W5mat=S5mat, W6mat=S6mat)
@@ -529,7 +557,7 @@ $$
 and the State-space model is completed by including the observation process, as a Poisson error with detection probability:
 
 $$
-\mathbf{N}_{t} \sim \text{Poisson}(p_{t} \times e^{\mathbf{X}_{t}})
+\mathbf{N}_{t} \sim \text{Poisson}(\mathbf{p}_{t} \times e^{\mathbf{X}_{t}})
 $$
 
 ```{r DC model including water and detection}
@@ -567,17 +595,17 @@ MGSS_DC_w4.0 <- function(){
     ##### ---- Likelihood (data cloning) ---- #####
     X[1:p,1,k] ~ dmnorm(muvec + betaw*W[1:p,1], Sigma) #muvec + beta*water[,1]
     for(h in 1:p){
-      N4[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))
-      N5[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))      
-      N6[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))
+      N4[h,1,k] ~ dpois(detectp[h,1]*exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(detectp[h,1]*exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(detectp[h,1]*exp(X[h,1,k]))
     }
     for( i in 2:qp1){ 
       ## Process error
       X[1:p,i,k]  ~ dmnorm(A[1:p] + betaw*W[1:p,i] + B[1:p,1:p]%*%X[1:p,(i-1),k], Sigma);
       for(j in 1:p){
-        N4[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error
-        N5[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error        
-        N6[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error        
+        N4[j,i,k]  ~ dpois(detectp[j,i]*exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(detectp[j,i]*exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(detectp[j,i]*exp(X[j,i,k])) ## Observation error        
       }
     }
   }  
@@ -587,9 +615,9 @@ MGSS_DC_w4.0 <- function(){
 Bring back the counts and water level of the 11 wetlands representing 6 regions.  
 
 ```{r counts for 11 wetlands}
-S4mat <- Counts.list$S4mat[1:11,1:28] # Cut the last time step: no data anywhere
-S5mat <- Counts.list$S5mat[1:11,1:28]
-S6mat <- Counts.list$S6mat[1:11,1:28]
+S4mat <- Counts.list$S4mat[1:15,1:28] # Cut the last time step: no data anywhere
+S5mat <- Counts.list$S5mat[1:15,1:28]
+S6mat <- Counts.list$S6mat[1:15,1:28]
 
 S4mat[is.na(S4mat)] <- NA
 S5mat[is.na(S5mat)] <- NA
@@ -598,9 +626,9 @@ S6mat[is.na(S6mat)] <- NA
 
 But for now, lets combine a single value of mean water level across the three surveys (first approach)
 ```{r water mean per survey for 11 wetlands}
-W4mat <- Water.list$W4mat[1:11,1:28] # Cut the last time step: no data anywhere
-W5mat <- Water.list$W5mat[1:11,1:28]
-W6mat <- Water.list$W6mat[1:11,1:28]
+W4mat <- Water.list$W4mat[1:15,1:28] # Cut the last time step: no data anywhere
+W5mat <- Water.list$W5mat[1:15,1:28]
+W6mat <- Water.list$W6mat[1:15,1:28]
 W <- (W4mat + W5mat + W6mat) / 3
 W[is.na(W)] <- NA
 ```
@@ -608,7 +636,7 @@ W[is.na(W)] <- NA
 Again, we pick a single time series of counts with no `NA`s, and "`cbind()` it" to a column of time, thus getting a matrix with time as a first column and counts as a second column. We use this matrix to compute a first guess of the model parameters to be used in all regions.
 
 ```{r}
-ts.4guess  <- S4mat[6,]+1 # some 0s and NAs bring the first guess to Inf, thus add 1 only for this first guess
+ts.4guess  <- S4mat[8,]+1 # some 0s and NAs bring the first guess to Inf, thus add 1 only for this first guess
 tvec4guess  <- as.numeric(colnames(S4mat))
 onets4guess <- cbind(tvec4guess, ts.4guess)
 naive.guess <- guess.calc2.0(TimeAndNs = onets4guess)
@@ -616,9 +644,10 @@ naive.guess
 ```
 
 We can bring the distance between regions, using the centroid and distance from the edge of a convex polygon of the historical geolocation of nests in each region. The data was provided in meters, but it could be convenient numerically to convert it to kilometers. In addition, we assign the row names that matches with our survey matrices.
+
 ```{r}
 # mean distance from the centroid 
-wet.dists <- read.csv("Code/Wetlands_centroid distance in meters.csv")[,-1]
+wet.dists <- read.csv("Code/Wetlands_centroid distance in meters.csv")[,-c(1:3)]
 wet.dists <- as.matrix(wet.dists)/1000
 rownames(wet.dists) <- rownames(S4mat)
 wet.dists
@@ -626,10 +655,20 @@ wet.dists
 
 And the annual detection probability estimated from the CMR model
 ```{r}
-detectp <- read.csv("Code/detectability.csv")[5:32,1] #only estimates of detection between 1997 and 2024
+all.ps <- read.csv(file="Code/p.estimates.wt.7.24.25.csv")
+names(all.ps)
+
+# I am going to leave it as a matrix of ps in case we want to make them 
+# time dependent later
+phats <- matrix(nrow=15, ncol=28)
+row.names(phats) <- wet.names
+for(i in 1:15){
+  subdat <- all.ps[all.ps$stratum==sub("_.*", "", wet.names)[i],]
+  phats[i,] <- subdat$estimate
+}
 ```
 
-The number of (sub)populations `p` now is defined as the 11 wetlands, and included in the initial values lists. This is a trick to have the priors in the positive domain of the lognormal distribution.
+The number of (sub)populations `p` now is defined as the 15 wetlands, and included in the initial values lists. This is a trick to have the priors in the positive domain of the lognormal distribution.
 ```{r}
 p <- nrow(S4mat)
 myinits <- list(lmuvec = log(rep(naive.guess[1],p)), # mu ≈ mean(log(ts.4guess)),
@@ -652,7 +691,7 @@ data4dclone <- list(K=1,
                     N5=dcdim(array(S5mat,dim=c(p,ncol(S5mat),1))), 
                     N6=dcdim(array(S6mat,dim=c(p,ncol(S6mat),1))), 
                     W = W^2, # testing quadratic
-                    detectp = detectp,
+                    detectp = phats,
                     qp1=ncol(S4mat), 
                     p=p, 
                     mupmean=rep(6,p), 
@@ -661,13 +700,13 @@ data4dclone <- list(K=1,
                     lthetaprec =  10*diag(p),
                     Ip =  diag(p),
                     dinvmat = dinvmat,
-                    step.stone = matrix(c(1,9,
-                                          2,9, 3,9, 4,9, 5,9,
-                                          6,10, 7,10, 8,10,
-                                          9,1,
-                                          10,6,
-                                          11,6),
-                                        nrow=11,ncol=2,byrow=TRUE)
+                    step.stone = matrix(c(1,7,
+                                          2,5, 3,2, 4,7, 5,2, 6,5, 7,4, 
+                                          8,12, 9,11, 10,9, 11,9, 12,8,
+                                          13,7,
+                                          14,8,
+                                          15,9),
+                                        nrow=15,ncol=2,byrow=TRUE)
 )
 ```
 
@@ -692,23 +731,23 @@ mgssdclone_w <- dc.fit(data4dclone,
                      n.iter = n.iter, 
                      thin=thin, 
                      inits=myinits) 
-saveRDS(mgssdclone_w, "Code/mgssdclone_w_p_quadr.RDS")
+saveRDS(mgssdclone_w, "Code/mgssdclone_w_phat_quadr.RDS")
 ```
 
 We can save the MLEs and predict the dynamic of the population for each wetland within six regions with the Kalman filter estimates
 
 ```{r}
-mgssdclone_w <- readRDS("Code/mgssdclone_w_p_quadr.RDS")
+mgssdclone_w <- readRDS("Code/mgssdclone_w_phat_quadr.RDS")
 mlescentrdist <- summary(mgssdclone_w)[[1]]
 mles4kalman <- mlescentrdist[,1]
 mles4kalman
-avec4kalman <- mles4kalman[1:11]
-beta.4kalman <- mles4kalman[12]
-cvec4kalman <- mles4kalman[13:23]
-mig.far4kalman  <- mles4kalman[24]
-mig.near4kalman <- mles4kalman[25]
-muvec4kalman <- mles4kalman[26:36]
-sigsq4kalman <- mles4kalman[37]
+avec4kalman <- mles4kalman[1:15]
+beta.4kalman <- mles4kalman[16]
+cvec4kalman <- mles4kalman[17:31]
+mig.far4kalman <- mles4kalman[32]
+mig.near4kalman <- mles4kalman[33]
+muvec4kalman <- mles4kalman[34:48]
+sigsq4kalman <- mles4kalman[49]
 ```
 
 ## Kalman estimates of abundance with effect of assymetric migration
@@ -722,17 +761,17 @@ MGSS_KALMANw4.0 <- function(){
   ##### ---- Likelihood ---- #####
   X[1:p,1] ~ dmnorm(muvec + betaw*W[1:p,1], Sigma)
   for(h in 1:p){
-    N4[h,1] ~ dpois(detectp[1] * exp(X[h,1]))
-    N5[h,1] ~ dpois(detectp[1] * exp(X[h,1]))    
-    N6[h,1] ~ dpois(detectp[1] * exp(X[h,1]))    
+    N4[h,1] ~ dpois(detectp[h,1] * exp(X[h,1]))
+    N5[h,1] ~ dpois(detectp[h,1] * exp(X[h,1]))    
+    N6[h,1] ~ dpois(detectp[h,1] * exp(X[h,1]))    
   }
   for( i in 2:qp1){ 
     ## Process error
     X[1:p,i]  ~ dmnorm(A + betaw*W[1:p,i] + B%*%X[1:p,(i-1)], Sigma); 
     for(j in 1:p){
-      N4[j,i]  ~ dpois(detectp[i] * exp(X[j,i])) ## Observation error
-      N5[j,i]  ~ dpois(detectp[i] * exp(X[j,i])) ## Observation error      
-      N6[j,i]  ~ dpois(detectp[i] * exp(X[j,i])) ## Observation error
+      N4[j,i]  ~ dpois(detectp[j,i] * exp(X[j,i])) ## Observation error
+      N5[j,i]  ~ dpois(detectp[j,i] * exp(X[j,i])) ## Observation error      
+      N6[j,i]  ~ dpois(detectp[j,i] * exp(X[j,i])) ## Observation error
     }
   }
 }
@@ -741,13 +780,13 @@ MGSS_KALMANw4.0 <- function(){
 Data for Kalman estimates
 
 ```{r}
-step.stone <- matrix(c(1,9,
-                       2,9, 3,9, 4,9, 5,9,
-                       6,10, 7,10, 8,10,
-                       9,1,
-                       10,6,
-                       11,6),
-                     nrow=11,
+step.stone <- matrix(c(1,7,
+                       2,5, 3,2, 4,7, 5,2, 6,5, 7,4, 
+                       8,12, 9,11, 10,9, 11,9, 12,8,
+                       13,7,
+                       14,8,
+                       15,9),
+                     nrow=15,
                      ncol=2,
                      byrow=TRUE)
 step.stone
@@ -773,7 +812,7 @@ data4kalman <- list(N4=S4mat,
                     W = W^2,
                     qp1=ncol(S4mat), 
                     p=p,
-                    detectp = detectp,
+                    detectp = phats,
                     Ip =  diag(p),
                     betaw = beta.4kalman,
                     muvec = muvec4kalman,
@@ -800,13 +839,13 @@ kalman.mcmc.w <- jags.fit(data4kalman,
                          n.update=n.update, 
                          n.iter = n.iter, 
                          thin=thin)
-saveRDS(kalman.mcmc.w, "Code/Kalman_w_quad_detect_OUSS.RDS")
+saveRDS(kalman.mcmc.w, "Code/Kalman_w_quad_phat_OUSS.RDS")
 ```
 
 And then, bring back the data to see the population trajectories in each region.
 
 ```{r}
-kalman.mcmc.w <- readRDS("Code/Kalman_w_quad_detect_OUSS.RDS")
+kalman.mcmc.w <- readRDS("Code/Kalman_w_quad_phat_OUSS.RDS")
 Xkalman.w <-  do.call(rbind, kalman.mcmc.w)
 
 Kalman.quants.w <- apply(Xkalman.w, 2, FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))}) 
@@ -836,13 +875,17 @@ kalman_wide_w <- kalman_df_w |>
                   ifelse(wetland == 3, "EVER_WCA.2B",
                   ifelse(wetland == 4, "EVER_Loxahatchee.NWR",
                   ifelse(wetland == 5, "EVER_WCA.3B",
-                  ifelse(wetland == 6, "KRV_East.Lake.Tohopekaliga",
-                  ifelse(wetland == 7, "KRV_Lake.Kissimmee",
-                  ifelse(wetland == 8, "KRV_Lake.Istokpoga",
-                  ifelse(wetland == 9, "OKEE_Lake.Okeechobee",
-                  ifelse(wetland == 10, "PP_Paynes.Prairie",
-                  ifelse(wetland == 11, "SJM_SJM",
-                  wetland)))))))))))) |>
+                  ifelse(wetland == 6, "EVER_Everglades.NP",
+                  ifelse(wetland == 7, "EVER_STA1E",
+                  ifelse(wetland == 8, "KRV_East.Lake.Tohopekaliga",
+                  ifelse(wetland == 9, "KRV_Lake.Kissimmee",
+                  ifelse(wetland == 10, "KRV_Lake.Istokpoga",
+                  ifelse(wetland == 11, "KRV_Lake.Hatchineha",
+                  ifelse(wetland == 12, "KRV_Lake.Tohopekaliga",
+                  ifelse(wetland == 13, "OKEE_Lake.Okeechobee",
+                  ifelse(wetland == 14, "PP_Paynes.Prairie",
+                  ifelse(wetland == 15, "SJM_SJM",
+                  wetland)))))))))))))))) |>
   pivot_wider(names_from = quantile, 
               values_from = value)
 
@@ -879,9 +922,13 @@ kalman_wide$wetland <- factor(kalman_wide$wetland,
                                         "EVER_WCA.2B", # EVER
                                         "EVER_Loxahatchee.NWR", # EVER
                                         "EVER_WCA.3B", # EVER
+                                        "EVER_Everglades.NP", # EVER
+                                        "EVER_STA1E", # EVER
                                         "KRV_East.Lake.Tohopekaliga", # KRV
                                         "KRV_Lake.Kissimmee", # KRV
                                         "KRV_Lake.Istokpoga", # KRV
+                                        "KRV_Lake.Hatchineha", # KRV
+                                        "KRV_Lake.Tohopekaliga", # KRV
                                         "OKEE_Lake.Okeechobee", # OKEE
                                         "PP_Paynes.Prairie", # PP
                                         "SJM_SJM" # SJM
@@ -891,7 +938,20 @@ kalman_wide$wetland <- factor(kalman_wide$wetland,
 Wetland_water_detectp <- ggplot(kalman_wide, aes(x = time, y = `50%`, 
                         color = factor(region), 
                         fill = factor(region))) +
-  facet_wrap(~wetland, ncol = 3, scales = "free_y") +
+  facet_wrap(~factor(wetland, 
+                     levels = c(
+                       "EVER_Everglades.NP","EVER_WCA.3B","EVER_Loxahatchee.NWR",
+                       "EVER_STA1E","EVER_WCA.2B","EVER_WCA.3A",
+                       "OKEE_Lake.Okeechobee",
+                       "KRV_Lake.Hatchineha","KRV_Lake.Istokpoga",
+                       "KRV_East.Lake.Tohopekaliga",
+                       "KRV_Lake.Tohopekaliga",
+                       "KRV_Lake.Kissimmee",
+                       "EAST_Grassy.Waters.Preserve",
+                       "SJM_SJM",
+                       "PP_Paynes.Prairie"
+                       )), 
+             ncol = 3, scales = "free_y") +
   geom_line() +
   geom_ribbon(aes(ymin = `2.5%`, ymax = `97.5%`), 
               alpha = 0.2, color = NA) +
@@ -900,26 +960,29 @@ Wetland_water_detectp <- ggplot(kalman_wide, aes(x = time, y = `50%`,
   geom_point(aes(y = Count6), shape = 24, fill = NA)+
   labs(
     x = "Year",
-    y = "Population sizes",
+    y = "Local resident abundance",
     color = "",
     fill = ""
     ) +
   scale_color_manual(values=met.brewer("Homer2", 6)) +
   scale_fill_manual(values=met.brewer("Homer2", 6)) +
   theme_classic() +
-  theme(legend.position = "inside",
-        legend.position.inside = c(0.85,0.1),
+  theme(legend.position = "bottom",
         legend.direction = "horizontal",
-        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm")) 
+        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm")) +
+  guides(color=guide_legend(nrow =1),
+         fill=guide_legend(nrow = 1))
 
-ggsave(Wetland_water_detectp, filename = "Wetland_water_detectp.jpg",dpi = 300,
-       width = 230, height = 170, units = "mm")
+ggsave(Wetland_water_detectp, filename = "Wetland_15_water_phat.pdf",dpi = 300,
+       width = 200, height = 150, units = "mm")
+ggsave(Wetland_water_detectp, filename = "Wetland_15_water_phat.jpg",dpi = 300,
+       width = 200, height = 150, units = "mm")
 ```
-![Dynamic population of snail kites for 11 wetlands in 6 regions of Florida - detection probability and quadratic relationship with Relative water (stage)](Wetland_water_detectp.jpg)<br>
+![Dynamic population of snail kites for 15 wetlands in 6 regions of Florida - detection probability and quadratic relationship with Relative water (stage)](Wetland_15_water_phat.jpg)<br>
 
 In this plot, the open points represent three surveys per year: down-facing triangles are survey 4, circles are survey 5, and up-facing triangles are survey 6. This dynamic includes the extra parameter for detectability and the influence of relative water sage as a quadratic effect. Using quadratic effect of water reduces the confidence intervals of predicted trajectories of the population.
 
-![Dynamic population of snail kites for 11 wetlands in 6 regions of Florida - detection probability and linear relationship with Relative water (stage)](Wetland_water_noQuadrd_detectp.jpg)<br>
+![Dynamic population of snail kites for 11 wetlands in 6 regions of Florida - detection probability and linear relationship with Relative water (stage) as a previous approach](Wetland_water_noQuadrd_detectp.jpg)<br>
 
 # How does a change in water level affects the growth rate of the different populations?
 Our modified Gompertz model in full matrix format that includes standardized quadratic water level effects is:
@@ -965,9 +1028,7 @@ $$
 $$
 
 
-\noindent where we abuse a bit of the vector notation and remark that the division in the above fraction represents elementwise division.  Thus, $\mbs{\beta_W}$ is a vector of estimated water effects per wetland studied.  We emphasize that adopting this statistic to estimate the water effects is useful because it directly shows how the maximum growth rates, the strength of density dependence and the inter-demes effects $b_{ij}$ regulate the effect of water level changes in every deme.  Finally, note that using the value of $\boldsymbol{\mu}$ to scale the water effect is also justified because it is the value of the process that renders the growth rate zero on average. To see why, recall that in the long-run, $\mathbf{X}_t = \mathbf{X}_{t+1} = \mathbf{X}_{\infty}$ is invariant over time so that the average growth rate is $\text{E}[\text{R}_t] = \mathbf{0} = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$. (To check that this is true, note that the RHS of this last equation is $\mathbf{A} + (\mathcal{B}-\mathbf{I})\text{E}[\mathbf{X}_\infty] = \mathbf{A} + (\mathcal{B}-\mathbf{I})\boldsymbol{\mu}$ and since $\boldsymbol{\mu} = (\mathbf{I-B})^{-1}\mathbf{A}$ the last equation becomes $\mathbf{A} -\mathbf{IA} = \mathbf{0}$).
-
-
+\noindent where we abuse a bit of the vector notation and remark that the division in the above fraction represents element-wise division.  Thus, $\boldsymbol{\beta_W}$ is a vector of estimated water effects per wetland studied. We emphasize that adopting this statistic to estimate the water effects is useful because it directly shows how the maximum growth rates, the strength of density dependence and the inter-demes effects $b_{ij}$ regulate the effect of water level changes in every deme.  Finally, note that using the value of $\boldsymbol{\mu}$ to scale the water effect is also justified because it is the value of the process that renders the growth rate zero on average. To see why, recall that in the long-run, $\mathbf{X}_t = \mathbf{X}_{t+1} = \mathbf{X}_{\infty}$ is invariant over time so that the average growth rate is $\text{E}[\text{R}_t] = \mathbf{0} = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$. To check that this is true, note that the right hand side (RHS) of this last equation is $\mathbf{A} + (\mathcal{B}-\mathbf{I})\text{E}[\mathbf{X}_\infty] = \mathbf{A} + (\mathcal{B}-\mathbf{I})\boldsymbol{\mu}$ and since $\boldsymbol{\mu} = (\mathbf{I-B})^{-1}\mathbf{A}$ the last equation becomes $\mathbf{A} -\mathbf{IA} = \mathbf{0}$.
 
 
 ```{r}
@@ -982,30 +1043,18 @@ avg.gr <- muvec4kalman #avec4kalman + (B-diag(p)) %*% muvec4kalman
 W.sim = seq(min(W),max(W),by = 0.01)
 W.sim.sqr = W.sim^2
 
-std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 11)
-for (i in 1:11){
+std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 15)
+for (i in 1:15){
   std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
 }
 
-cool.palette <- as.vector(met.brewer("Signac",11))
+cool.palette <- as.vector(met.brewer("Signac",15))
 
+wet.names
 
-eleven.wetlands <- c("EAST_Grassy.Waters.Preserve", # EAST
-                                        "EVER_WCA.3A", # EVER
-                                        "EVER_WCA.2B", # EVER
-                                        "EVER_Loxahatchee.NWR", # EVER
-                                        "EVER_WCA.3B", # EVER
-                                        "KRV_East.Lake.Tohopekaliga", # KRV
-                                        "KRV_Lake.Kissimmee", # KRV
-                                        "KRV_Lake.Istokpoga", # KRV
-                                        "OKEE_Lake.Okeechobee", # OKEE
-                                        "PP_Paynes.Prairie", # PP
-                                        "SJM_SJM" # SJM
-                                        )
 #std.gr.hat <- mat.forlist
 
-colnames(std.gr.hat) <- eleven.wetlands
-
+colnames(std.gr.hat) <- wet.names
 
 par(mfrow=c(2,3), oma=c(2,2,2,2), mar=c(4,4,4,2))
 plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
@@ -1013,7 +1062,7 @@ plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
      xlab="", ylab="",
      xlim = c(min(W),max(W)),ylim=c(-2,0),
      bty="l", main="EAST", cex.main=1.25,lwd=2)
-for(i in 2:5){
+for(i in 2:7){
   if(i==2){
     plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
      xlim = c(min(W),max(W)), ylim=c(-2,0),
@@ -1024,8 +1073,8 @@ for(i in 2:5){
     points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
   }
 }  
-for(i in 6:8){
-  if(i==6){
+for(i in 8:12){
+  if(i==8){
     plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
      xlim = c(min(W),max(W)), ylim=c(-2,0),
      xlab="", ylab="",
@@ -1035,22 +1084,21 @@ for(i in 6:8){
     points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
   }
 }  
-plot(W.sim, std.gr.hat[,9], col=cool.palette[9],lwd=2,
+plot(W.sim, std.gr.hat[,13], col=cool.palette[13],lwd=2,
      type = "l", 
      xlim = c(min(W),max(W)),xlab="", ylab="",  ylim=c(-2,0),
      bty="l", main="OKEE", cex.main=1.25)
-plot(W.sim, std.gr.hat[,10], col=cool.palette[10],lwd=2,
+plot(W.sim, std.gr.hat[,14], col=cool.palette[14],lwd=2,
      type = "l", 
      xlim = c(min(W),max(W)),xlab="", ylab="",  ylim=c(-2,0),
      bty="l", main ="PP", cex.main=1.25)
-plot(W.sim, std.gr.hat[,11], col=cool.palette[11],lwd=2,
+plot(W.sim, std.gr.hat[,15], col=cool.palette[15],lwd=2,
      type = "l", 
      xlim = c(min(W),max(W)),xlab="", ylab="", ylim=c(-2,0),
      bty="l", main="SJM", cex.main=1.25)
 
 mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
 mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
-
 
 ```
 
@@ -1073,8 +1121,8 @@ one.boot.quad.effect <- function(p, muvec4kalman, beta.4kalman){
   W.sim = seq(min(W),max(W),by = 0.01)
   W.sim.sqr = W.sim^2
 
-  std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 11)
-  for (i in 1:11){
+  std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 15)
+  for (i in 1:15){
     std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
   }
   
@@ -1097,10 +1145,8 @@ inftest <- rep(0, NMCMC)
 for(i in 1:NMCMC){
   
   # Retrieve the model parameters:
-  beta.star <- mgssdclone_w[[1]][i,12]
-  muvec.star <-   mgssdclone_w[[1]][i,26:36]
-
-  
+  beta.star <- mgssdclone_w[[1]][i,16]
+  muvec.star <-   mgssdclone_w[[1]][i,34:48]
 
   mat.forlist <- one.boot.quad.effect(p=p, 
                                       muvec4kalman=muvec.star, 
@@ -1124,44 +1170,44 @@ for(i in 1:NMCMC){
 #      type = "l")
 # }
 
-saveRDS(st.gr.boot.list, file="Code/stgrbootlist.RDS")
+saveRDS(st.gr.boot.list, file="Code/stgrbootlist_15wetlands.RDS")
 ```
 
 ```{r}
 
-st.gr.boot.list <- readRDS(file="Code/stgrbootlist.RDS")
+st.gr.boot.list <- readRDS(file="Code/stgrbootlist_15wetlands.RDS")
 # Re-organizing the 10,000 list into 11 matrices each with 10,000 columns
 
 NMCMC <- dim(mgssdclone_w[[1]])[1]
 
-std.gr.11.mats <- list()
-for(i in 1:11){
-  ith.of11.bootmat <- matrix(0,nrow=length(W.sim), ncol=NMCMC)
+std.gr.15.mats <- list()
+for(i in 1:15){
+  ith.of15.bootmat <- matrix(0,nrow=length(W.sim), ncol=NMCMC)
   for(j in 1:NMCMC){
-    ith.of11.bootmat[,j] <- st.gr.boot.list[[j]][,i]
+    ith.of15.bootmat[,j] <- st.gr.boot.list[[j]][,i]
   }
-  std.gr.11.mats[[i]] <- ith.of11.bootmat
+  std.gr.15.mats[[i]] <- ith.of15.bootmat
 }
 
 
-# Maybe it's better to save the 11 matrices of quantiles as well:
+# Maybe it's better to save the 15 matrices of quantiles as well:
 
-quants4.11.mats <- list()
-for(i in 1:11){
-  quants4.11.mats[[i]] <- apply(std.gr.11.mats[[i]], 1, 
+quants4.15.mats <- list()
+for(i in 1:15){
+  quants4.15.mats[[i]] <- apply(std.gr.15.mats[[i]], 1, 
                                 FUN=function(x){quantile(x, probs=c(0.025,0.5,0.975))})
 }
 
 
-par(mfrow=c(3,4), oma=c(2,2,2,2), mar=c(4,4,4,2))
-for(i in 1:11){
+par(mfrow=c(3,5), oma=c(2,2,2,2), mar=c(4,3,3,2))
+for(i in 1:15){
   plot(W.sim, std.gr.hat[,i], col=cool.palette[i],
        type = "l", 
        xlab="", ylab="",
        xlim = c(min(W),max(W)),ylim=c(-2,0),
-       bty="l", main=eleven.wetlands[i], cex.main=1.25,lwd=2)
-  polygon(c(W.sim,rev(W.sim)),c(quants4.11.mats[[i]][1,], 
-                                                    rev(quants4.11.mats[[i]][3,])), 
+       bty="l", main=wet.names[i], cex.main=1.25,lwd=2)
+  polygon(c(W.sim,rev(W.sim)),c(quants4.15.mats[[i]][1,], 
+                                                    rev(quants4.15.mats[[i]][3,])), 
           col=scales::alpha(cool.palette[i],0.5), border=NA)
   points(W.sim, std.gr.hat[,i], col=cool.palette[i],
        type = "l", lwd=2)
@@ -1170,50 +1216,33 @@ mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
 mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
 
 
-
-
-
-
-
 ```
 
+Organizing the figure form the more sensible (lower $\hat{\mu}$) to the less sensible (biggest $\hat{\mu}$)
 
-We can make this figure in a different way
-```{r}
-std.gr.df <- as.data.frame(std.gr.hat)
-colnames(std.gr.df) <- c("EAST_Grassy.Waters.Preserve", # EAST
-                                        "EVER_WCA.3A", # EVER
-                                        "EVER_WCA.2B", # EVER
-                                        "EVER_Loxahatchee.NWR", # EVER
-                                        "EVER_WCA.3B", # EVER
-                                        "KRV_East.Lake.Tohopekaliga", # KRV
-                                        "KRV_Lake.Kissimmee", # KRV
-                                        "KRV_Lake.Istokpoga", # KRV
-                                        "OKEE_Lake.Okeechobee", # OKEE
-                                        "PP_Paynes.Prairie", # PP
-                                        "SJM_SJM" # SJM
-                                        )
+```{r eval=FALSE}
 
-std.gr.df <- cbind(std.gr.df,W.sim)
-
-std.gr.df |>
-  pivot_longer(!c(W.sim),
-               names_to = "wetland", 
-               values_to = "Std.gr.change") |> 
-  separate(wetland, into = c("Region","Wetland"), sep = "_") |>
-  ggplot(aes(x = W.sim, 
-             y = Std.gr.change, 
-             color = Wetland)) +
-  facet_wrap(~Region) +
-  geom_line()+
-  scale_color_manual(values=met.brewer("Signac",n = 11)) +
-  scale_fill_manual(values=met.brewer("Signac",n = 11)) +
-  labs(x = "Relative water (stage)",
-       y = expression(Delta~"Growth rate"))+
-  theme_classic()+
-  theme(legend.position = "bottom")
-
+sensible <- c(11,6,5,10,4,8,7,12,1,9,13,15,3,14,2)
+sensi.palette <- as.vector(met.brewer("Homer2",15))
+counter <- 1
+par(mfrow=c(5,3), oma=c(2,2,2,2), mar=c(4,3,3,2))
+for(i in sensible){
+  plot(W.sim, std.gr.hat[,i], col=sensi.palette[counter],
+       type = "l", 
+       xlab="", ylab="",
+       xlim = c(min(W),max(W)),ylim=c(-2,0),
+       bty="l", main=wet.names[i], cex.main=1.25,lwd=2)
+  polygon(c(W.sim,rev(W.sim)),c(quants4.15.mats[[i]][1,], 
+                                                    rev(quants4.15.mats[[i]][3,])), 
+          col=scales::alpha(sensi.palette[counter],0.5), border=NA)
+  points(W.sim, std.gr.hat[,i], col=sensi.palette[counter],
+       type = "l", lwd=2)
+  counter <- counter + 1
+}
+mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
 ```
+![Estimated standardized change in growth rate with changes in the centered water levels, for the 15 wetlands having the most amount of paired water and airboat count data, shown with Confidence Intervals. The wetlands are ordered from the most sensible to changes in water level (lower estimated $\hat{\mu}$; Lake Hatchineha in the Kissimmee River Valley) to the less sensible to these changes (higher estimated $\hat{\mu}$; WCA 3A in the Everglades)](StdChangeInGrowthRate_15_portrait.jpg)<br>
 
 # How will this affect the next step estimation?
 
@@ -1236,47 +1265,53 @@ X8s <- Kalman.quants.w[,which(names.quants.1=="X[8", arr.ind=TRUE)]
 X9s <- Kalman.quants.w[,which(names.quants.1=="X[9", arr.ind=TRUE)]
 X10s <- Kalman.quants.w[,which(names.quants.2=="X[10", arr.ind=TRUE)]
 X11s <- Kalman.quants.w[,which(names.quants.2=="X[11", arr.ind=TRUE)]
+X12s <- Kalman.quants.w[,which(names.quants.2=="X[12", arr.ind=TRUE)]
+X13s <- Kalman.quants.w[,which(names.quants.2=="X[13", arr.ind=TRUE)]
+X14s <- Kalman.quants.w[,which(names.quants.2=="X[14", arr.ind=TRUE)]
+X15s <- Kalman.quants.w[,which(names.quants.2=="X[15", arr.ind=TRUE)]
+
 ```
 
 We can estimate the change in abundance distribution with change in relative water. Given that it is a relative value centered around 0, multiply by a percentage of change change mainly the spread of the data, but little change in mean value (from `green` to `red` or `blue`:
 ```{r}
-hist(W, breaks = 100, xlim = c(-10,10))
+par(mfrow=c(2,3), oma=c(2,2,2,2), mar=c(4,4,4,2))
+
+hist(W, breaks = 50, xlim = c(-10,10), col = "green")
 abline(v = mean(W), col = "green")
 
-hist(W*0.5, breaks = 100, xlim = c(-10,10))
+hist(W*0.5, breaks = 50, xlim = c(-10,10), col = "red")
 abline(v = mean(W), col = "green")
 abline(v = mean(W*0.5), col = "red")
 
-hist(W*1.5, breaks = 100, xlim = c(-10,10))
+hist(W*1.5, breaks = 50, xlim = c(-10,10), col = "blue")
 abline(v = mean(W), col = "green")
 abline(v = mean(W*0.5), col = "red")
 abline(v = mean(W*1.5), col = "blue")
-```
 
-But we can add specific values of change in relative water, assuming change in values but not in spread
-```{r}
-hist(W, breaks = 100, xlim = c(-10,10))
+hist(W, breaks = 50, xlim = c(-10,10), col = "green")
 abline(v = mean(W), col = "green")
 
-hist(W+2, breaks = 100, xlim = c(-10,10))
+hist(W+2, breaks = 50, xlim = c(-10,10), col = "red")
 abline(v = mean(W), col = "green")
 abline(v = mean(W+2), col = "red")
 
-hist(W-2, breaks = 100, xlim = c(-10,10))
+hist(W-2, breaks = 50, xlim = c(-10,10), col = "blue")
 abline(v = mean(W), col = "green")
 abline(v = mean(W+2), col = "red")
 abline(v = mean(W-2), col = "blue")
 ```
 
+But we can add specific values of change in relative water, assuming change in values but not in spread
+
 Thus, we can simulate the next point with the quadratic relationship of Relative water (stage)
 ```{r eval=TRUE, echo=TRUE}
 MVX.sim <- function(
     xo.vec = c(X1s[2,28],
-               X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],
-               X6s[2,28],X7s[2,28],X8s[2,28],
-               X9s[2,28],
-               X10s[2,28],
-               X11s[2,28]),
+               X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28],X7s[2,28],
+               X8s[2,28],X9s[2,28],X10s[2,28],X11s[2,28],X12s[2,28],
+               X13s[2,28],
+               X14s[2,28],
+               X15s[2,28]),
     W = W[,28],
     theta.list = list(p=p,
                       Ip =  diag(p),
@@ -1319,11 +1354,11 @@ nchanges <- length(changes)
 for(i in 1:nchanges){
   probs.change.list[[i]] <- MVX.sim(
     xo.vec = c(X1s[2,28],
-               X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],
-               X6s[2,28],X7s[2,28],X8s[2,28],
-               X9s[2,28],
-               X10s[2,28],
-               X11s[2,28]),
+               X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28],X6s[2,28],X7s[2,28],
+               X8s[2,28],X9s[2,28],X10s[2,28],X11s[2,28],X12s[2,28],
+               X13s[2,28],
+               X14s[2,28],
+               X15s[2,28]),
                W = W[,28],
     theta.list = list(p=p,
                       Ip =  diag(p),
@@ -1375,39 +1410,46 @@ change.water.log <- probs.change.df.long |>
   ggplot(aes(x = mu,
            color = factor(change),
            fill = factor(change)))+
-  facet_wrap(~wetland, ncol = 3, scales = "free")+
+  facet_wrap(~factor(wetland, 
+                     levels = c(
+                       "KRV_Lake.Hatchineha","EVER_Everglades.NP","EVER_WCA.3B",
+                       "KRV_Lake.Istokpoga","EVER_Loxahatchee.NWR", "KRV_East.Lake.Tohopekaliga",
+                       "EVER_STA1E","KRV_Lake.Tohopekaliga","EAST_Grassy.Waters.Preserve",
+                       "KRV_Lake.Kissimmee","OKEE_Lake.Okeechobee","SJM_SJM",
+                       "EVER_WCA.2B","PP_Paynes.Prairie","EVER_WCA.3A"
+                       )), 
+             ncol = 3)+
   geom_density(alpha = 0.05, position = "dodge")+
 #  geom_density_ridges(rel_min_height = 0.01,
 #                      alpha = 0.05, scale = 0.9, jittered_points = FALSE,
 #                      position = position_points_jitter(width = 0.05, height = 0))+
-  scale_color_manual(values=met.brewer("Signac",n = nchanges)) +
-  scale_fill_manual(values=met.brewer("Signac",n = nchanges)) +
-  labs(x = expression(mu))+
+  scale_color_manual(values=rev(met.brewer("OKeeffe1",n = nchanges))) +
+  scale_fill_manual(values=rev(met.brewer("OKeeffe1",n = nchanges))) +
+  labs(x = expression(italic(x)[italic(t)+1]))+
   theme_classic()+
-  theme(legend.position = "inside",
-        legend.position.inside = c(0.85,0.1),
-        legend.direction = "vertical",
+  theme(legend.position = "bottom",
         legend.title = element_blank(),
         legend.background = element_rect(fill="white",
                                   linewidth=0.5, linetype="solid", 
                                   colour ="black"),
         plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))+
-  guides(color=guide_legend(ncol =1),
-         fill=guide_legend(ncol=1))
+  guides(color=guide_legend(nrow =1),
+         fill=guide_legend(nrow = 1)) +
+  coord_cartesian(xlim = c(-10,10))
 
-ggsave(change.water.log, filename = "Q2_log.jpg",dpi = 300,
+ggsave(change.water.log, filename = "Changes in log-ab one step.jpg",dpi = 300,
        width = 210, height = 180, units = "mm")
 ```
-![Change in expected abundance (log-scale) with change in relative water (stage) values](Q2_log.jpg)
+![Change in expected abundance (log-scale) with change in relative water (stage) values](Changes in log-ab one step.jpg)
 But the previous figure is only one step, from the current year. If we want to compare across populations this effect, we can use as start point the mean expected $\hat{\mu}$ from the overall trajectory
 
 ```{r eval=TRUE, echo=TRUE}
-probs.change.list <- list()
+probs.change.list.mu <- list()
 changes <- seq(5,-5, by=-2.5)
 nchanges <- length(changes)
 
 for(i in 1:nchanges){
-  probs.change.list[[i]] <- MVX.sim(
+  probs.change.list.mu[[i]] <- MVX.sim(
     xo.vec = c(muvec4kalman),
                W = W[,28],
     theta.list = list(p=p,
@@ -1420,13 +1462,13 @@ for(i in 1:nchanges){
     Nsims = 100000,
     pt.change = changes[i])
 }
-names(probs.change.list) <- as.character(sprintf("%.1f", changes))
+names(probs.change.list.mu) <- as.character(sprintf("%.1f", changes))
 
-probs.change.df <- bind_rows(
-  lapply(names(probs.change.list), function(name) {
-    df <- as.data.frame(probs.change.list[[name]])
+probs.change.df.mu <- bind_rows(
+  lapply(names(probs.change.list.mu), function(name) {
+    df <- as.data.frame(probs.change.list.mu[[name]])
     # Save row names as a column
-    df$wetland <- rownames(probs.change.list[[name]])  
+    df$wetland <- rownames(probs.change.list.mu[[name]])  
     # Add the original name as a column
     df$change <- paste0("∆ ",name)
     return(df)
@@ -1434,46 +1476,55 @@ probs.change.df <- bind_rows(
   .id = "id"  # Optional: adds an index column
 )
 
-table(probs.change.df$change)
+table(probs.change.df.mu$change)
 
-probs.change.df.long <- probs.change.df |>
+probs.change.df.long.mu <- probs.change.df.mu |>
   dplyr::select(!c(id)) |>
   pivot_longer(-c(wetland,change), 
                names_to = "P.change_Sim", 
                values_to = "mu")
 
-probs.change.df.long$change <- factor(probs.change.df.long$change,
+probs.change.df.long.mu$change <- factor(probs.change.df.long.mu$change,
                                       levels = c("∆ 5.0",
                                                  "∆ 2.5",
                                                  "∆ 0.0",
                                                  "∆ -2.5",
                                                  "∆ -5.0"))
 
-change.water.log.mu <- probs.change.df.long |>
+change.water.log.mu <- probs.change.df.long.mu |>
   ggplot(aes(x = mu,
            color = factor(change),
            fill = factor(change)))+
-  facet_wrap(~wetland, ncol = 3, scales = "free")+
+  facet_wrap(~factor(wetland, 
+                     levels = c(
+                       "KRV_Lake.Hatchineha","EVER_Everglades.NP","EVER_WCA.3B",
+                       "KRV_Lake.Istokpoga","EVER_Loxahatchee.NWR", "KRV_East.Lake.Tohopekaliga",
+                       "EVER_STA1E","KRV_Lake.Tohopekaliga","EAST_Grassy.Waters.Preserve",
+                       "KRV_Lake.Kissimmee","OKEE_Lake.Okeechobee","SJM_SJM",
+                       "EVER_WCA.2B","PP_Paynes.Prairie","EVER_WCA.3A"
+                       )), ncol = 3)+
   geom_density(alpha = 0.05, position = "dodge")+
 #  geom_density_ridges(rel_min_height = 0.01,
 #                      alpha = 0.05, scale = 0.9, jittered_points = FALSE,
 #                      position = position_points_jitter(width = 0.05, height = 0))+
-  scale_color_manual(values=met.brewer("Signac",n = nchanges)) +
-  scale_fill_manual(values=met.brewer("Signac",n = nchanges)) +
-  labs(x = expression(mu))+
+  scale_color_manual(values=rev(met.brewer("OKeeffe1",n = nchanges))) +
+  scale_fill_manual(values=rev(met.brewer("OKeeffe1",n = nchanges))) +
+  labs(x = expression(mu[italic(t)+1]))+
   theme_classic()+
-  theme(legend.position = "inside",
-        legend.position.inside = c(0.85,0.1),
+  theme(legend.position = "bottom",
         legend.direction = "vertical",
         legend.title = element_blank(),
         legend.background = element_rect(fill="white",
                                   linewidth=0.5, linetype="solid", 
                                   colour ="black"),
         plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))+
-  guides(color=guide_legend(ncol =1),
-         fill=guide_legend(ncol=1)) 
+  guides(color=guide_legend(nrow =1),
+         fill=guide_legend(nrow=1)) +
+  coord_cartesian(xlim = c(-5,8))
 
-ggsave(change.water.log.mu, filename = "Q2_log_mu.jpg",dpi = 300,
+ggsave(change.water.log.mu, filename = "Changes in mu one step.jpg",dpi = 600,
+       width = 210, height = 180, units = "mm")
+ggsave(change.water.log.mu, filename = "Changes in mu one step.png",dpi = 600,
        width = 210, height = 180, units = "mm")
 ```
-![Change in expected abundance (log-scale) with change in relative water (stage) values, starting from the mean abundance at each wetland](Q2_log_mu.jpg)
+![Change in expected abundance (log-scale) with change in relative water (stage) values, starting from the mean abundance at each wetland](Changes in mu one step.jpg)

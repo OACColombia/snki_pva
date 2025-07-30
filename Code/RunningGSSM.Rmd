@@ -14,6 +14,7 @@ output:
 #      header-includes:
       editor_options:
         markdown: 
+        chunk_output_type: console
       chunk_output_type: console
 ---
 
@@ -39,7 +40,7 @@ Vinf <- sigsq/(1-cc^2)
 
 len <- 30
 Onesim <- Pois.gssm(pars=c(mu=mu, theta=theta, sigsq=sigsq), len=len)
-plot(1:len, Onesim[,2], pch=16, type="b", xlab="Time", ylab="Population size", bty="l")
+plot(1:len, Onesim[,3], pch=16, type="b", xlab="Time", ylab="Population size", bty="l")
 ```
 
 ![**Figure 1: Naive Simulation Plot.**](SimpleGompertz-data.jpeg)
@@ -47,7 +48,7 @@ plot(1:len, Onesim[,2], pch=16, type="b", xlab="Time", ylab="Population size", b
 Next, we do Maximum Likelihood estimation via Data Cloning and MCMC
 ```{r eval=FALSE, echo=TRUE}
 ncl <- 30
-data <- list(N=nimMatrix(Onesim[,2], nrow= nrow(Onesim), ncol=ncl))
+data <- list(N=nimMatrix(Onesim[,3], nrow= nrow(Onesim), ncol=ncl))
 constants <- list(qp1 = nrow(Onesim), ncl=ncl)
 monitors <- c("mu", "theta", "sigmasq", "a", "cc", "car.cap", "Vinf")
 inits <- list(lmu = log(4), ltheta=log(0.5), lsigmasq=log(0.1))
@@ -76,7 +77,7 @@ Alright!  It seems this is working fairly decently.  Note that I have not increa
 
 ```{r eval=FALSE, echo=TRUE}
 
-data <- list(N=Onesim[,2])
+data <- list(N=Onesim[,3])
 constants <- append( as.list(tmp.model$summary$all.chains[,1]),  constants)
 
 gss.kalman <- nimbleMCMC( code=GSSM.kalman, data = data, 
@@ -90,14 +91,16 @@ N.hat <-  gss.kalman$summary$all.chains[,1]
 N.low <-  gss.kalman$summary$all.chains[,4]
 N.hi <-  gss.kalman$summary$all.chains[,5]
 
-par(oma=c(1,1,1,1), mar=c(4,5,2,1))
-plot(1:len, exp(Onesim[,1]), pch=16, type="b", xlab="Time", ylab="Population size", bty="l",
-     ylim=range(Onesim[,2]) + c(-20,+20), col="blue", cex.lab=1.15)
+par(oma=c(1,1,2,1), mar=c(4,5,1,1))
+plot(1:len, exp(Onesim[,2]), pch=16, type="b", xlab="Time", ylab="Population size", bty="l", ylim=c(0,350), col="blue", cex.lab=1.15)
 polygon(c(1:len,rev(1:len)), c(N.low,rev(N.hi)), col="pink", border=NA)
-points(1:len, exp(Onesim[,1]), pch=16, type="b", col="blue")
+points(1:len, exp(Onesim[,2]), pch=16, type="b", col="blue")
 points(1:len, N.hat, pch=16, type="b", col="red")
-legend("topright", legend=c("True population size", "Estimated population size"),
-       col=c("blue", "red"), pch=c(16,16), lty=c(1,1), cex=0.85, bty="n")
+points(1:len, data$N, pch=16, type="b", col="black")
+legend(0,365, legend=c("True abundance", "Estimated abundance", "Observed counts"),
+       col=c("blue", "red","black"), pch=c(16,16,16), lty=c(1,1,1), cex=0.85, bty="n", horiz=TRUE)
+
+
 
 ```
 ![**Figure 2: Kalman estimates of true (unobserved) population sizes**](GSSM-Fit.JPEG)

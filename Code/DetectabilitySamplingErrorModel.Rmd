@@ -347,7 +347,7 @@ data4dclone <- list(K=1,
                     lthetaprec =  10*diag(p),
                     Ip =  diag(p),
                     dinvmat = dinvmat,
-                    step.stone = matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                    step.stone = matrix(c(1,4,2,4,3,6,4,1,5,3,6,3),
                                         nrow=6,ncol=2,byrow=TRUE)
 )
 ```
@@ -432,7 +432,7 @@ MGSS_KALMAN2.0 <- function(){
 Data for Kalman estimates
 
 ```{r echo=TRUE, eval=TRUE}
-step.stone <- matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+step.stone <- matrix(c(1,4,2,4,3,6,4,1,5,3,6,3),
                      nrow=6,
                      ncol=2,
                      byrow=TRUE)
@@ -608,7 +608,7 @@ points(1:len, NsMLE,pch=16, type="b", col=cool.palette[1])
 mark.dat <- read.csv("Code/2024_1997_popsize_ci.csv", header=TRUE)
 names(mark.dat)
 
-plot(mark.dat$Nsuper,NsMLE, pch=16, xlim=c(0,3500), ylim=c(0,3500))
+plot(mark.dat$Nsuper,NsMLE, pch=16, xlim=c(0,3500), ylim=c(0,3500), bty="l")
 abline(a=0,b=1)
 
 #write.csv(cbind(NsLCL,NsMLE,NsUCL), file="Code/TimeSeriesMLEs.csv")
@@ -654,17 +654,17 @@ MGSS_DC4.0 <- function(){
     ##### ---- Likelihood (data cloning) ---- #####
     X[1:p,1,k] ~ dmnorm(muvec, Sigma) #muvec + beta*water[,1]
     for(h in 1:p){
-      N4[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))
-      N5[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))      
-      N6[h,1,k] ~ dpois(detectp[1]*exp(X[h,1,k]))
+      N4[h,1,k] ~ dpois(detectp[h,1]*exp(X[h,1,k]))
+      N5[h,1,k] ~ dpois(detectp[h,1]*exp(X[h,1,k]))      
+      N6[h,1,k] ~ dpois(detectp[h,1]*exp(X[h,1,k]))
     }
     for( i in 2:qp1){ 
       ## Process error
       X[1:p,i,k]  ~ dmnorm(A[1:p] + B[1:p,1:p]%*%X[1:p,(i-1),k], Sigma); #A[1:p] + beta*water[,1] + B[...]
       for(j in 1:p){
-        N4[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error
-        N5[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error        
-        N6[j,i,k]  ~ dpois(detectp[i]*exp(X[j,i,k])) ## Observation error        
+        N4[j,i,k]  ~ dpois(detectp[j,i]*exp(X[j,i,k])) ## Observation error
+        N5[j,i,k]  ~ dpois(detectp[j,i]*exp(X[j,i,k])) ## Observation error        
+        N6[j,i,k]  ~ dpois(detectp[j,i]*exp(X[j,i,k])) ## Observation error        
       }
     }
   }  
@@ -677,9 +677,29 @@ Next, we import the matrix of detectability estimates over the years:
 
 ```{r importing detectabilities}
 
-detectabilities <- read.csv("Code/detectability.csv")
+# V1 detectability model:  time series of detectabilities
+#detectabilities <- read.csv("Code/detectability.csv")
+#phats <- detectabilities[-(1:4),1]
 
-phats <- detectabilities[-(1:4),1]
+# V2 of detectability model:  two values, one for palustrine  and one for lacustrine 
+# habitat
+
+# Remember the order of the demes is in the object deme.names
+
+all.ps <- read.csv(file="Code/p.estimates.wt.7.24.25.csv")
+names(all.ps)
+#View(all.ps)
+
+# I am going to leave it as a matrix of ps in case we want to make them 
+# time dependent later
+phats <- matrix(nrow=6,ncol=28)
+row.names(phats) <- deme.names
+for(i in 1:6){
+  subdat <- all.ps[all.ps$stratum==deme.names[i],]
+  phats[i,] <- subdat$estimate
+}
+
+
 
 ```
 
@@ -698,7 +718,7 @@ data4dclone <- list(K=1,
                     lthetaprec =  10*diag(p),
                     Ip =  diag(p),
                     dinvmat = dinvmat,
-                    step.stone = matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+                    step.stone = matrix(c(1,4,2,4,3,6,4,1,5,3,6,3),
                                         nrow=6,ncol=2,byrow=TRUE),
                     detectp=phats
                     )
@@ -724,17 +744,28 @@ mgssdclone2<- dc.fit(data4dclone,
                      n.iter = n.iter, 
                      thin=thin, 
                      inits=myinits) 
-saveRDS(mgssdclone2, "Code/mgssdclone2.RDS")
+
+# First pdetect version is saved here:
+#saveRDS(mgssdclone2, "Code/mgssdclone2.RDS")
+
+# Second pdetect version with two constant ps over time:
+saveRDS(mgssdclone2, "Code/mgssdclone2-twopdetects.RDS")
 
 ```
 
 Let's check this model:
 
 ```{r echo=TRUE, eval=TRUE}
-mgssdclone2 <- readRDS("Code/mgssdclone2.RDS")
+mgssdclone2 <- readRDS("Code/mgssdclone2-twopdetects.RDS")
 dcdiag(mgssdclone2)
 summary(mgssdclone2)
 confint(mgssdclone2)
+
+mlesmat <- cbind(confint(mgssdclone)[,1], summary(mgssdclone2)[[1]][,1],
+                 confint(mgssdclone)[,2])
+
+write.csv(mlesmat,"Code/mlesSamplingErrorModel2pdetects.csv")
+
 ```
 Now let's save the MLEs and predict the dynamic of the population for each region with the Kalman filter estimates
 
@@ -762,17 +793,17 @@ MGSS_KALMAN3.0 <- function(){
   ##### ---- Likelihood ---- #####
   X[1:p,1] ~ dmnorm(muvec, Sigma)
   for(h in 1:p){
-    N4[h,1] ~ dpois(detectp[1]*exp(X[h,1]))
-    N5[h,1] ~ dpois(detectp[1]*exp(X[h,1]))    
-    N6[h,1] ~ dpois(detectp[1]*exp(X[h,1]))    
+    N4[h,1] ~ dpois(detectp[h,1]*exp(X[h,1]))
+    N5[h,1] ~ dpois(detectp[h,1]*exp(X[h,1]))    
+    N6[h,1] ~ dpois(detectp[h,1]*exp(X[h,1]))    
   }
   for( i in 2:qp1){ 
     ## Process error
     X[1:p,i]  ~ dmnorm(A + B%*%X[1:p,(i-1)], Sigma); 
     for(j in 1:p){
-      N4[j,i]  ~ dpois(detectp[i]*exp(X[j,i])) ## Observation error
-      N5[j,i]  ~ dpois(detectp[i]*exp(X[j,i])) ## Observation error      
-      N6[j,i]  ~ dpois(detectp[i]*exp(X[j,i])) ## Observation error
+      N4[j,i]  ~ dpois(detectp[j,i]*exp(X[j,i])) ## Observation error
+      N5[j,i]  ~ dpois(detectp[j,i]*exp(X[j,i])) ## Observation error      
+      N6[j,i]  ~ dpois(detectp[j,i]*exp(X[j,i])) ## Observation error
     }
   }
 
@@ -787,7 +818,7 @@ MGSS_KALMAN3.0 <- function(){
 
 Bundling data for the new Kalman estimates:
 ```{r}
-step.stone <- matrix(c(1,4,2,4,3,5,4,1,5,3,6,3),
+step.stone <- matrix(c(1,4,2,4,3,6,4,1,5,3,6,3),
                      nrow=6,
                      ncol=2,
                      byrow=TRUE)
@@ -872,68 +903,72 @@ X5s2 <- exp(X5s2)
 X6s2 <- exp(X6s2)
 
 
-par(mfrow=c(2,3), oma=c(1,1,1,1), mar=c(4,5,2,1))
-plot(1:len, X1s2[2,], pch=16, type="b", col=cool.palette[1],
+par(mfrow=c(2,3), oma=c(3,3,1,1), mar=c(5,5,2,1))
+plot(1997:2024, X1s2[2,], pch=16, type="b", col=cool.palette[1],
      ylim=c(min(X1s2),max(X1s2)), 
      main =deme.names[1], 
-     xlab="Time", 
-     ylab="log-population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(X1s2[1,],rev(X1s2[3,])), 
+     xlab="", 
+     ylab="", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(X1s2[1,],rev(X1s2[3,])), 
         col=scales::alpha(cool.palette[1],0.1), border=NA)
-points(1:len, X1s2[2,],pch=16, type="b", col=cool.palette[1])
-points(1:len, S4mat[1,],pch=16, type="b", col="black")
+points(1997:2024, X1s2[2,],pch=16, type="b", col=cool.palette[1])
+points(1997:2024, S4mat[1,],pch=16, type="b", col="black")
 
-plot(1:len, X2s2[2,], pch=16, type="b", col=cool.palette[2],
+plot(1997:2024, X2s2[2,], pch=16, type="b", col=cool.palette[2],
      ylim=c(min(X2s2),max(X2s2)), 
      main =deme.names[2], 
-     xlab="Time", 
-     ylab="log-population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(X2s2[1,],rev(X2s2[3,])), 
+     xlab="", 
+     ylab="", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(X2s2[1,],rev(X2s2[3,])), 
         col=scales::alpha(cool.palette[2],0.1), border=NA)
-points(1:len, X2s2[2,],pch=16, type="b", col=cool.palette[2])
-points(1:len, S4mat[2,],pch=16, type="b", col="black")
+points(1997:2024, X2s2[2,],pch=16, type="b", col=cool.palette[2])
+points(1997:2024, S4mat[2,],pch=16, type="b", col="black")
 
-plot(1:len, X3s2[2,], pch=16, type="b", col=cool.palette[3],
+plot(1997:2024, X3s2[2,], pch=16, type="b", col=cool.palette[3],
      ylim=c(min(X3s2),max(X3s2)), 
      main =deme.names[3], 
-     xlab="Time", 
-     ylab="log-population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(X3s2[1,],rev(X3s2[3,])), 
+     xlab="", 
+     ylab="", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(X3s2[1,],rev(X3s2[3,])), 
         col=scales::alpha(cool.palette[3],0.1), border=NA)
-points(1:len, X3s2[2,],pch=16, type="b", col=cool.palette[3])
-points(1:len, S4mat[3,],pch=16, type="b", col="black")
+points(1997:2024, X3s2[2,],pch=16, type="b", col=cool.palette[3])
+points(1997:2024, S4mat[3,],pch=16, type="b", col="black")
 
 
-plot(1:len, X4s2[2,], pch=16, type="b", col=cool.palette[4],
+plot(1997:2024, X4s2[2,], pch=16, type="b", col=cool.palette[4],
      ylim=c(min(X4s2),max(X4s2)), 
      main =deme.names[4], 
-     xlab="Time", 
-     ylab="log-population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(X4s2[1,],rev(X4s2[3,])), 
+     xlab="", 
+     ylab="", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(X4s2[1,],rev(X4s2[3,])), 
         col=scales::alpha(cool.palette[4],0.1), border=NA)
-points(1:len, X4s2[2,],pch=16, type="b", col=cool.palette[4])
-points(1:len, S4mat[4,],pch=16, type="b", col="black")
+points(1997:2024, X4s2[2,],pch=16, type="b", col=cool.palette[4])
+points(1997:2024, S4mat[4,],pch=16, type="b", col="black")
 
 
-plot(1:len, X5s2[2,], pch=16, type="b", col=cool.palette[5],
+plot(1997:2024, X5s2[2,], pch=16, type="b", col=cool.palette[5],
      ylim=c(min(X5s2),max(X5s2)), 
      main =deme.names[5], 
-     xlab="Time", 
-     ylab="log-population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(X5s2[1,],rev(X5s2[3,])), 
+     xlab="", 
+     ylab="", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(X5s2[1,],rev(X5s2[3,])), 
         col=scales::alpha(cool.palette[5],0.1), border=NA)
-points(1:len, X5s2[2,],pch=16, type="b", col=cool.palette[5])
-points(1:len, S4mat[5,],pch=16, type="b", col="black")
+points(1997:2024, X5s2[2,],pch=16, type="b", col=cool.palette[5])
+points(1997:2024, S4mat[5,],pch=16, type="b", col="black")
 
-plot(1:len, X6s2[2,], pch=16, type="b", col=cool.palette[6],
+plot(1997:2024, X6s2[2,], pch=16, type="b", col=cool.palette[6],
      ylim=c(min(X6s2),max(X6s2)), 
      main =deme.names[6], 
-     xlab="Time", 
-     ylab="log-population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(X6s2[1,],rev(X6s2[3,])), 
+     xlab="", 
+     ylab="", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(X6s2[1,],rev(X6s2[3,])), 
         col=scales::alpha(cool.palette[6],0.1), border=NA)
-points(1:len, X6s2[2,],pch=16, type="b", col=cool.palette[6])
-points(1:len, S4mat[6,],pch=16, type="b", col="black")
+points(1997:2024, X6s2[2,],pch=16, type="b", col=cool.palette[6])
+points(1997:2024, S4mat[6,],pch=16, type="b", col="black")
+
+mtext(text="Years (1997-2024)",  side=1, outer=TRUE, cex.lab=1.5)
+mtext(text="Local Resident Abundances",  side=2, outer=TRUE, cex.lab=1.5)
+
 #![Kalman estimates vs. log-observed abundances from a simple Poisson sampling error model](Kalman-VsObserved-PoissonSampling-pdetect.JPEG)<br>
 ```
 
@@ -955,14 +990,20 @@ NsMLE.2 <- Nhats1.2[2,] + Nhats2.2[2,] + Nhats3.2[2,] + Nhats4.2[2,] + Nhats5.2[
 NsUCL.2 <- Nhats1.2[3,] + Nhats2.2[3,] + Nhats3.2[3,] + Nhats4.2[3,] + Nhats5.2[3,] + Nhats6.2[3,] 
 
 par(mfrow=c(1,1))
-plot(1:len, NsMLE.2, pch=16, type="b", col=cool.palette[6],
-     main ="Super Population Estimate", 
+plot(1997:2024, NsMLE.2, pch=16, type="b", col=cool.palette[6],
+     main ="Pooled Total Resident Abundances", 
      ylim= c(0,2500),
-     xlab="Time", 
-     ylab="Population sizes", bty="l")
-polygon(c(1:len,rev(1:len)), c(NsLCL.2,rev(NsUCL.2)), 
+     xlab="Years", 
+     ylab="Total Resident population size", bty="l")
+polygon(c(1997:2024,rev(1997:2024)), c(NsLCL.2,rev(NsUCL.2)), 
         col=scales::alpha(cool.palette[1],0.1), border=NA)
-points(1:len, NsMLE.2,pch=16, type="b", col=cool.palette[1])
+points(1997:2024, NsMLE.2,pch=16, type="b", col=cool.palette[1])
+
+### Saving an RDS list of the 6 kalman matrices to work with the Allee effect model
+kalmans.list <- list(Nhats1.2=Nhats1.2,Nhats2.2=Nhats2.2,Nhats3.2=Nhats3.2,
+                     Nhats4.2=Nhats4.2,Nhats5.2=Nhats5.2,Nhats6.2=Nhats6.2)
+saveRDS(kalmans.list, file="Code/Kalmans-ObservationErrorFit-2Pdetects.RDS")
+####### RETAKE HERE
 
 
 ### Mark-recapture 
@@ -973,15 +1014,65 @@ names(mark.dat)
 
 plot(mark.dat$Nsuper,NsMLE.2, pch=16, xlim=c(0,3500), ylim=c(0,3500),
      xlab=c("Super Population size estimates using Mark-Recapture data"),
-     ylab="MLEs of the Breeding Population size with under-detection",
+     ylab="MLEs of the Total Resident Population size with under-detection",
      bty="l")
 abline(a=0,b=1)
 
-write.csv(cbind(NsLCL.2,NsMLE.2,NsUCL.2), file="Code/TimeSeriesMLEs-pdetect.csv")
+write.csv(cbind(NsLCL.2,NsMLE.2,NsUCL.2), file="Code/TimeSeriesMLEs-Twopdetects.csv")
 
 #save.image("Code/SamplingError.RData")
 
+#save.image(file="SamplingError2-ps-BasicEstimation.RData")
+#load("SamplingError2-ps-BasicEstimation.RData")
 ```
+
+# Parenthesis before the PVA:  plotting the growth rates for visualization of results
+
+```{r growthrates plot}
+avec4kalman2 
+muvec4kalman2 
+sigsq4kalman2 
+
+Imat <- diag(p)
+
+Ns4gr <- seq(5,600,by=10)
+nns <- length(Ns4gr)
+Ns4grmat <- matrix(rep(Ns4gr,p), nrow=p,ncol=nns, byrow=TRUE)
+GRmat <- matrix(0,nrow=p,ncol=nns)
+row.names(GRmat) <- deme.names
+for(i in 1:nns){
+
+  GRmat[,i] <- avec4kalman2 + (B2-Imat)%*%log(Ns4grmat[,i])
+
+}
+
+GRmat0 <- cbind(avec4kalman2,GRmat)
+
+par(mfrow=c(2,3), oma=c(3,3,1,1), mar=c(4,3,4,3))
+
+for(i in 1:p){
+  
+  plot(c(0,Ns4gr), GRmat0[i,], type="l", lwd=2, col=cool.palette[i],
+        xlim=c(0,300), ylim= c(-1.5,5.5), bty="l",
+        xlab="", ylab= "",
+        cex.lab=1.5, main=deme.names[i], cex.main=1.5)  
+  abline(h=0, type="l", lty=2, lwd=2)
+  points(exp(muvec4kalman2[i]),0, pch=3, cex=1.5, col=cool.palette[i], lwd=2)
+
+}
+mtext("Abundance across all demes", side=1, outer=TRUE, cex=1.5)
+mtext("Growth rate", side=2, outer=TRUE, cex=1.5)
+
+#legend("topright", legend=deme.names, lty=1,lwd=2,col=cool.palette[1:p], bty="n")
+
+
+
+
+
+
+```
+
+
 # Population viability analysis: short, medium and long term projections per deme
 
 With the population dynamics model parameter estimates, we can now focus on building a function to compute the same probabilities for any value of a change in the stationary mean and any proportion of the past average population abundances `E.N`. 
@@ -1056,7 +1147,7 @@ MVX.sim <- function(xo.vec = c(X1s[2,28],X2s[2,28],X3s[2,28],X4s[2,28],X5s[2,28]
 ```
 
 
-```{r echo=TRUE, eval=FALSE}
+```{r echo=TRUE, eval=TRUE}
 
 p.ext <- function(pct.change=0.9, muvec4kalman=muvec4kalman2, xinits=
                     c(X1s2[2,28],X2s2[2,28],X3s2[2,28],X4s2[2,28],X5s2[2,28],X6s2[2,28]),p=p,
@@ -1134,11 +1225,13 @@ print(probs.change.list)
 
 saveRDS(probs.change.list, "Code/probschangelist.RDS")
 
+
 ```
 
 Once these probabilities are computed we are ready to plot them in a single graph:
 
 ```{r probs.dropping plot}
+
 probs.change.list <- readRDS("Code/probschangelist.RDS")
 changes <- seq(1.5,0.5, by=-0.1)
 nchanges <- length(changes)

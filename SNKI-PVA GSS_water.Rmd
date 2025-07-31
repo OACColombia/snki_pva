@@ -183,6 +183,7 @@ survey_date <- read.csv("Code/survey_dates_1997_2025.csv") |>
 
 Then, we have the water level for each day in each wetland.
 ```{r}
+# daily water level ####
 daily_wetland_water <- read.csv("Code/daily stage in each wetland.csv") |> 
   mutate(date = dmy(Daily.Date)) |>
   pivot_longer(cols = !c("date", "Daily.Date"),
@@ -1045,7 +1046,8 @@ W.sim.sqr = W.sim^2
 
 std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 15)
 for (i in 1:15){
-  std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
+  #std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
+  std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i]^2)
 }
 
 cool.palette <- as.vector(met.brewer("Signac",15))
@@ -1056,48 +1058,65 @@ wet.names
 
 colnames(std.gr.hat) <- wet.names
 
+mean_W_wetland <- daily_wetland_water |>
+  group_by(region.wetland) |> 
+  summarize(mean_stage = mean(mean_stage, na.rm = TRUE)) |>
+  as.data.frame()
+
+mean_W4wetland <- matrix(NA,nrow = length(wet.names),ncol = 1)
+for(i in 1:15){
+mean_W4wetland[i] <- mean_W_wetland$mean_stage[mean_W_wetland$region.wetland == wet.names[i]]
+}
+
 par(mfrow=c(2,3), oma=c(2,2,2,2), mar=c(4,4,4,2))
-plot(W.sim, std.gr.hat[,1], col=cool.palette[1],
+plot(W.sim+mean_W4wetland[1], std.gr.hat[,1], col=cool.palette[1],
      type = "l", 
      xlab="", ylab="",
-     xlim = c(min(W),max(W)),ylim=c(-2,0),
+     xlim = c(5,30),
+     ylim=c(-1,0),
      bty="l", main="EAST", cex.main=1.25,lwd=2)
 for(i in 2:7){
   if(i==2){
-    plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
-     xlim = c(min(W),max(W)), ylim=c(-2,0),
+    plot(W.sim+mean_W4wetland[i],std.gr.hat[,i], type="l", col=cool.palette[i],
+     xlim = c(5,30), 
+     ylim=c(-1,0),
      xlab="", ylab="",
      bty="l", main="EVER", cex.main=1.25,lwd=2)
    }
   else{
-    points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
+    points(W.sim+mean_W4wetland[i],std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
   }
 }  
 for(i in 8:12){
   if(i==8){
-    plot(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],
-     xlim = c(min(W),max(W)), ylim=c(-2,0),
+    plot(W.sim+mean_W4wetland[i],std.gr.hat[,i], type="l", col=cool.palette[i],
+     xlim = c(35,60), 
+     ylim=c(-1,0),
      xlab="", ylab="",
      bty="l", main="KRV", cex.main=1.25,lwd=2)
    }
   else{
-    points(W.sim,std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
+    points(W.sim+mean_W4wetland[i],std.gr.hat[,i], type="l", col=cool.palette[i],lwd=2)
   }
 }  
-plot(W.sim, std.gr.hat[,13], col=cool.palette[13],lwd=2,
+plot(W.sim+mean_W4wetland[13], std.gr.hat[,13], col=cool.palette[13],lwd=2,
      type = "l", 
-     xlim = c(min(W),max(W)),xlab="", ylab="",  ylim=c(-2,0),
+     xlim = c(1,26),
+     xlab="", ylab="",  ylim=c(-1,0),
      bty="l", main="OKEE", cex.main=1.25)
-plot(W.sim, std.gr.hat[,14], col=cool.palette[14],lwd=2,
+plot(W.sim+mean_W4wetland[14], std.gr.hat[,14], col=cool.palette[14],lwd=2,
      type = "l", 
-     xlim = c(min(W),max(W)),xlab="", ylab="",  ylim=c(-2,0),
+     xlim = c(40,65),
+     xlab="", ylab="",  ylim=c(-1,0),
      bty="l", main ="PP", cex.main=1.25)
-plot(W.sim, std.gr.hat[,15], col=cool.palette[15],lwd=2,
+plot(W.sim+mean_W4wetland[15], std.gr.hat[,15], col=cool.palette[15],lwd=2,
      type = "l", 
-     xlim = c(min(W),max(W)),xlab="", ylab="", ylim=c(-2,0),
+     xlim = c(8,33),
+     xlab="", ylab="", 
+     ylim=c(-1,0),
      bty="l", main="SJM", cex.main=1.25)
 
-mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
+mtext("Wetland stage", side=1, cex=1.25, outer=TRUE)
 mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
 
 ```
@@ -1123,7 +1142,7 @@ one.boot.quad.effect <- function(p, muvec4kalman, beta.4kalman){
 
   std.gr.hat <- matrix(0, nrow = length(W.sim), ncol = 15)
   for (i in 1:15){
-    std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i])
+    std.gr.hat[,i] <- (beta.4kalman * W.sim.sqr) / (avg.gr[i]^2)
   }
   
   return(std.gr.hat)
@@ -1201,15 +1220,16 @@ for(i in 1:15){
 
 par(mfrow=c(3,5), oma=c(2,2,2,2), mar=c(4,3,3,2))
 for(i in 1:15){
-  plot(W.sim, std.gr.hat[,i], col=cool.palette[i],
+  plot(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=cool.palette[i],
        type = "l", 
        xlab="", ylab="",
-       xlim = c(min(W),max(W)),ylim=c(-2,0),
+       xlim = c(mean_W4wetland[i]-15,mean_W4wetland[i]+15),ylim=c(-1,0),
        bty="l", main=wet.names[i], cex.main=1.25,lwd=2)
-  polygon(c(W.sim,rev(W.sim)),c(quants4.15.mats[[i]][1,], 
-                                                    rev(quants4.15.mats[[i]][3,])), 
+  polygon(c(W.sim+mean_W4wetland[i],rev(W.sim+mean_W4wetland[i])),
+          c(quants4.15.mats[[i]][1,],
+            rev(quants4.15.mats[[i]][3,])), 
           col=scales::alpha(cool.palette[i],0.5), border=NA)
-  points(W.sim, std.gr.hat[,i], col=cool.palette[i],
+  points(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=cool.palette[i],
        type = "l", lwd=2)
 }
 mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
@@ -1227,19 +1247,21 @@ sensi.palette <- as.vector(met.brewer("Homer2",15))
 counter <- 1
 par(mfrow=c(5,3), oma=c(2,2,2,2), mar=c(4,3,3,2))
 for(i in sensible){
-  plot(W.sim, std.gr.hat[,i], col=sensi.palette[counter],
+  plot(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=sensi.palette[counter],
        type = "l", 
        xlab="", ylab="",
-       xlim = c(min(W),max(W)),ylim=c(-2,0),
+       xlim = c(mean_W4wetland[i]-7.5,mean_W4wetland[i]+7.5),
+       ylim=c(-1,0),
        bty="l", main=wet.names[i], cex.main=1.25,lwd=2)
-  polygon(c(W.sim,rev(W.sim)),c(quants4.15.mats[[i]][1,], 
-                                                    rev(quants4.15.mats[[i]][3,])), 
+  polygon(c(W.sim+mean_W4wetland[i],rev(W.sim+mean_W4wetland[i])),
+          c(quants4.15.mats[[i]][1,],
+            rev(quants4.15.mats[[i]][3,])), 
           col=scales::alpha(sensi.palette[counter],0.5), border=NA)
-  points(W.sim, std.gr.hat[,i], col=sensi.palette[counter],
+  points(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=sensi.palette[counter],
        type = "l", lwd=2)
   counter <- counter + 1
 }
-mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
+mtext("Wetland water stage", side=1, cex=1.25, outer=TRUE)
 mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
 ```
 ![Estimated standardized change in growth rate with changes in the centered water levels, for the 15 wetlands having the most amount of paired water and airboat count data, shown with Confidence Intervals. The wetlands are ordered from the most sensible to changes in water level (lower estimated $\hat{\mu}$; Lake Hatchineha in the Kissimmee River Valley) to the less sensible to these changes (higher estimated $\hat{\mu}$; WCA 3A in the Everglades)](StdChangeInGrowthRate_15_portrait.jpg)<br>

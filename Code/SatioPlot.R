@@ -227,9 +227,9 @@ dens1 <- 25000*dlnorm(supp1,meanlog=a/(1-cc), sdlog=sqrt(statio.var))
 points(c(stop.plot,stop.plot), c(0,up.sup), type="l", lty=1)
 points(stop.plot+dens1, supp1, type="l", lwd=1, col="black")
 # Adding the deterministic trajectory
-points(1:stop.plot,trial.det[1:stop.plot], type="l", lty=1,  col="black", lwd=2)
-text(stop.plot+10,K-50, expression(K[b]), cex=1.15, col = "black")
-points(stop.plot,K,pch=16, col="black", cex=0.8)
+#points(1:stop.plot,trial.det[1:stop.plot], type="l", lty=1,  col="black", lwd=2)
+#text(stop.plot+10,K-50, expression(K[b]), cex=1.15, col = "black")
+#points(stop.plot,K,pch=16, col="black", cex=0.8)
 # Adding the trajectory of the Expected Value
 points(1:stop.plot,E.trial.mean[1:stop.plot], type="l", lty=1,  col="blue", lwd=2)
 points(stop.plot,exp((a/(1-cc)) + statio.var/2 ), pch=16, cex=0.8,col="blue")

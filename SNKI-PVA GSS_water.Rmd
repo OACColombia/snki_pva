@@ -1116,8 +1116,8 @@ plot(W.sim+mean_W4wetland[15], std.gr.hat[,15], col=cool.palette[15],lwd=2,
      ylim=c(-1,0),
      bty="l", main="SJM", cex.main=1.25)
 
-mtext("Wetland stage", side=1, cex=1.25, outer=TRUE)
-mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+mtext("Wetland level (ft)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in resident population growth rate",side=2, cex=1.25, outer=TRUE)
 
 ```
 
@@ -1232,8 +1232,8 @@ for(i in 1:15){
   points(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=cool.palette[i],
        type = "l", lwd=2)
 }
-mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
-mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+mtext("Wetland level (ft)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in resident population growth rate",side=2, cex=1.25, outer=TRUE)
 
 
 ```
@@ -1243,6 +1243,10 @@ Organizing the figure form the more sensible (lower $\hat{\mu}$) to the less sen
 ```{r eval=FALSE}
 
 sensible <- c(11,6,5,10,4,8,7,12,1,9,13,15,3,14,2)
+
+wet.names <- gsub("[_]", " - ", wet.names)
+wet.names <- gsub("[.]", " ", wet.names)
+
 sensi.palette <- as.vector(met.brewer("Homer2",15))
 counter <- 1
 par(mfrow=c(5,3), oma=c(2,2,2,2), mar=c(4,3,3,2))
@@ -1251,18 +1255,21 @@ for(i in sensible){
        type = "l", 
        xlab="", ylab="",
        xlim = c(mean_W4wetland[i]-7.5,mean_W4wetland[i]+7.5),
-       ylim=c(-1,0),
+       ylim=c(-1,0.2),
        bty="l", main=wet.names[i], cex.main=1.25,lwd=2)
+    abline(h = 0, lty = 2)
   polygon(c(W.sim+mean_W4wetland[i],rev(W.sim+mean_W4wetland[i])),
           c(quants4.15.mats[[i]][1,],
             rev(quants4.15.mats[[i]][3,])), 
           col=scales::alpha(sensi.palette[counter],0.5), border=NA)
   points(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=sensi.palette[counter],
        type = "l", lwd=2)
+  abline(v = mean_W4wetland[i], lty = 2, col = sensi.palette[counter])
+  text(mean_W4wetland[i]+1.5, -0.8, round(mean_W4wetland[i], 1), col = sensi.palette[counter])
   counter <- counter + 1
 }
-mtext("Wetland water stage", side=1, cex=1.25, outer=TRUE)
-mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+mtext("Wetland water level (ft)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in resident population growth rate",side=2, cex=1.25, outer=TRUE)
 ```
 ![Estimated standardized change in growth rate with changes in the centered water levels, for the 15 wetlands having the most amount of paired water and airboat count data, shown with Confidence Intervals. The wetlands are ordered from the most sensible to changes in water level (lower estimated $\hat{\mu}$; Lake Hatchineha in the Kissimmee River Valley) to the less sensible to these changes (higher estimated $\hat{\mu}$; WCA 3A in the Everglades)](StdChangeInGrowthRate_15_portrait.jpg)<br>
 

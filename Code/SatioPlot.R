@@ -207,7 +207,47 @@ mtext("Population abundance", side=2, outer=TRUE, cex=1.15, line=1)
 
 save.image("StatioPlot2.0.RData")
 
+# Adjusting from comments in the report ####
+par(mfrow=c(1,1), oma=c(4,4,3,2), mar=c(2,2,2,2))
 
+# Left
+matplot(1:stop.plot,trial[1:stop.plot, sim4plot], type="l",
+        col="darkgrey", lty=1, 
+        xlab="", ylab="", cex.lab=0.9, main="", cex.main=0.9,
+        bty="l", xlim=c(0,len), cex.lab=1.25, axes=FALSE, ylim=c(0,up.sup-250))
 
+# adding three axis
+axis(side=1, at=c(0,seq(20,len,by=20)))
+axis(side=2, at=c(0,seq(250,up.sup - 250,by=250)))
+#axis(side=4, at=c(0,seq(250,up.sup + 250,by=250)))
 
+# Support and density of the side-wise pdf:
+supp1 <- seq(0,up.sup,by=5)
+dens1 <- 25000*dlnorm(supp1,meanlog=a/(1-cc), sdlog=sqrt(statio.var))
+points(c(stop.plot,stop.plot), c(0,up.sup), type="l", lty=1)
+points(stop.plot+dens1, supp1, type="l", lwd=1, col="black")
+# Adding the deterministic trajectory
+#points(1:stop.plot,trial.det[1:stop.plot], type="l", lty=1,  col="black", lwd=2)
+#text(stop.plot+10,K-50, expression(K[b]), cex=1.15, col = "black")
+#points(stop.plot,K,pch=16, col="black", cex=0.8)
+# Adding the trajectory of the Expected Value
+points(1:stop.plot,E.trial.mean[1:stop.plot], type="l", lty=1,  col="blue", lwd=2)
+points(stop.plot,exp((a/(1-cc)) + statio.var/2 ), pch=16, cex=0.8,col="blue")
+text(stop.plot+12,50+exp((a/(1-cc)) + statio.var/2),
+     expression(paste("E[",N[t],"]", sep="")), cex=1.15, col = "blue")
 
+# Adding polygon with p(extinction)
+nc <- 300
+points(c(1,len),c(nc,nc), type="l", lty=2, lwd=1,col="red")
+# Find index of intersection of pdf and cuttoff point nc:
+int.ind <- which.min(((supp1)-nc)^2)
+#dens1.intersect <- round((stop.plot+dens1)[int.ind],digits=2)
+xs4polygon <- stop.plot+dens1[1:int.ind]   
+ys.low4polygon <- supp1[1:int.ind]
+ys.hi4polygon <- rep(nc,int.ind)
+polygon(x=c(xs4polygon,rev(xs4polygon)), y=c(ys.low4polygon,ys.hi4polygon),
+        col=scales::alpha("red",0.2), border = NA)
+text(stop.plot-5, nc-100, expression(n[c]),cex=1.15, col = "red")
+
+mtext("Time", side=1, outer=TRUE, cex=1.15, line=1)
+mtext("Population abundance", side=2, outer=TRUE, cex=1.15, line=1)

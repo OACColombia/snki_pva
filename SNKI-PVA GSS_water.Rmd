@@ -1020,16 +1020,16 @@ $$
 \text{R}_{t}^{W}= \mathbf{X}_{t+1} - \mathbf{X}_t = \mathbf{A} + \mathbf{BX}_t + \beta W_t^2 + \mathbf{E}_t.
 $$
 
-%%%%%%%%%%%% CONTINUE HERE
-
-\noindent Thus, to achieve a benchmark comparison with the model without a water covariate, we can simply subtract both growth rates which simply yields $\beta W^2$.  Because that coefficient is assumed to be the same for all populations, scaling it by the vector of means $\boldsymbol{\mu} = \mathbf{(I-B)^{-1}A}$ allows one to compare visually how the water term affects the growth rate.  Thus, we set the estimate of the water effects as:
+\noindent Thus, to achieve a benchmark comparison with the model without a water covariate, we can simply subtract both growth rates which simply yields $\beta W^2$.  Because that coefficient is assumed to be the same for all populations, scaling it by the vector of means $\boldsymbol{\mu} = \mathbf{(I-B)^{-1}A}$ allows one to compare visually how the water term affects the growth rate, with a fraction change $f$.  Thus, we set the estimate of the water effects as:
 
 $$
-\boldsymbol{\beta_W} = \frac{\widehat{\beta}W_t^{2}}{\widehat{\boldsymbol{\mu}}}.
+\begin{array}
+\hat{\mu_i} \times f &=& \frac{\hat{\beta}W_t^{2}}{\hat{\mu_i}} \\
+f &=& \frac{\hat{\beta}W_t^{2}}{\hat{\mu_i}^{2}}.
+\end{array}
 $$
 
-
-\noindent where we abuse a bit of the vector notation and remark that the division in the above fraction represents element-wise division.  Thus, $\boldsymbol{\beta_W}$ is a vector of estimated water effects per wetland studied. We emphasize that adopting this statistic to estimate the water effects is useful because it directly shows how the maximum growth rates, the strength of density dependence and the inter-demes effects $b_{ij}$ regulate the effect of water level changes in every deme.  Finally, note that using the value of $\boldsymbol{\mu}$ to scale the water effect is also justified because it is the value of the process that renders the growth rate zero on average. To see why, recall that in the long-run, $\mathbf{X}_t = \mathbf{X}_{t+1} = \mathbf{X}_{\infty}$ is invariant over time so that the average growth rate is $\text{E}[\text{R}_t] = \mathbf{0} = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$. To check that this is true, note that the right hand side (RHS) of this last equation is $\mathbf{A} + (\mathcal{B}-\mathbf{I})\text{E}[\mathbf{X}_\infty] = \mathbf{A} + (\mathcal{B}-\mathbf{I})\boldsymbol{\mu}$ and since $\boldsymbol{\mu} = (\mathbf{I-B})^{-1}\mathbf{A}$ the last equation becomes $\mathbf{A} -\mathbf{IA} = \mathbf{0}$.
+\noindent where we abuse a bit of the vector notation and remark that the division in the above fraction represents element-wise division.  Thus, $\boldsymbol{f}$ is a vector of estimated water effects per wetland studied. We emphasize that adopting this statistic to estimate the water effects is useful because it directly shows how the maximum growth rates, the strength of density dependence and the inter-demes effects $b_{ij}$ regulate the effect of water level changes in every deme.  Finally, note that using the value of $\boldsymbol{\mu}$ to scale the water effect is also justified because it is the value of the process that renders the growth rate zero on average. To see why, recall that in the long-run, $\mathbf{X}_t = \mathbf{X}_{t+1} = \mathbf{X}_{\infty}$ is invariant over time so that the average growth rate is $\text{E}[\text{R}_t] = \mathbf{0} = \text{E}[\mathbf{A} + (\mathcal{B}-\mathbf{I})\mathbf{X}_\infty + \mathbf{E}_t]$. To check that this is true, note that the right hand side (RHS) of this last equation is $\mathbf{A} + (\mathcal{B}-\mathbf{I})\text{E}[\mathbf{X}_\infty] = \mathbf{A} + (\mathcal{B}-\mathbf{I})\boldsymbol{\mu}$ and since $\boldsymbol{\mu} = (\mathbf{I-B})^{-1}\mathbf{A}$ the last equation becomes $\mathbf{A} -\mathbf{IA} = \mathbf{0}$.
 
 
 ```{r}
@@ -1116,8 +1116,8 @@ plot(W.sim+mean_W4wetland[15], std.gr.hat[,15], col=cool.palette[15],lwd=2,
      ylim=c(-1,0),
      bty="l", main="SJM", cex.main=1.25)
 
-mtext("Wetland stage", side=1, cex=1.25, outer=TRUE)
-mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+mtext("Wetland level (ft)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in resident population growth rate",side=2, cex=1.25, outer=TRUE)
 
 ```
 
@@ -1232,8 +1232,8 @@ for(i in 1:15){
   points(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=cool.palette[i],
        type = "l", lwd=2)
 }
-mtext("Relative water (stage)", side=1, cex=1.25, outer=TRUE)
-mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+mtext("Wetland level (ft)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in resident population growth rate",side=2, cex=1.25, outer=TRUE)
 
 
 ```
@@ -1243,6 +1243,10 @@ Organizing the figure form the more sensible (lower $\hat{\mu}$) to the less sen
 ```{r eval=FALSE}
 
 sensible <- c(11,6,5,10,4,8,7,12,1,9,13,15,3,14,2)
+
+wet.names <- gsub("[_]", " - ", wet.names)
+wet.names <- gsub("[.]", " ", wet.names)
+
 sensi.palette <- as.vector(met.brewer("Homer2",15))
 counter <- 1
 par(mfrow=c(5,3), oma=c(2,2,2,2), mar=c(4,3,3,2))
@@ -1251,18 +1255,21 @@ for(i in sensible){
        type = "l", 
        xlab="", ylab="",
        xlim = c(mean_W4wetland[i]-7.5,mean_W4wetland[i]+7.5),
-       ylim=c(-1,0),
+       ylim=c(-1,0.2),
        bty="l", main=wet.names[i], cex.main=1.25,lwd=2)
+    abline(h = 0, lty = 2)
   polygon(c(W.sim+mean_W4wetland[i],rev(W.sim+mean_W4wetland[i])),
           c(quants4.15.mats[[i]][1,],
             rev(quants4.15.mats[[i]][3,])), 
           col=scales::alpha(sensi.palette[counter],0.5), border=NA)
   points(W.sim+mean_W4wetland[i], std.gr.hat[,i], col=sensi.palette[counter],
        type = "l", lwd=2)
+  abline(v = mean_W4wetland[i], lty = 2, col = sensi.palette[counter])
+  text(mean_W4wetland[i]+1.5, -0.8, round(mean_W4wetland[i], 1), col = sensi.palette[counter])
   counter <- counter + 1
 }
-mtext("Wetland water stage", side=1, cex=1.25, outer=TRUE)
-mtext("Std. ∆ in growth rate",side=2, cex=1.25, outer=TRUE)
+mtext("Wetland water level (ft)", side=1, cex=1.25, outer=TRUE)
+mtext("Std. ∆ in resident population growth rate",side=2, cex=1.25, outer=TRUE)
 ```
 ![Estimated standardized change in growth rate with changes in the centered water levels, for the 15 wetlands having the most amount of paired water and airboat count data, shown with Confidence Intervals. The wetlands are ordered from the most sensible to changes in water level (lower estimated $\hat{\mu}$; Lake Hatchineha in the Kissimmee River Valley) to the less sensible to these changes (higher estimated $\hat{\mu}$; WCA 3A in the Everglades)](StdChangeInGrowthRate_15_portrait.jpg)<br>
 
